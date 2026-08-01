@@ -1,0 +1,18 @@
+<svg width="240" height="220" viewBox="0 0 240 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="nsGrad" x1="10%" y1="100%" x2="95%" y2="5%">
+      <stop offset="0%" stop-color="#123B67" />
+      <stop offset="55%" stop-color="#178C8C" />
+      <stop offset="100%" stop-color="#2ECC71" />
+    </linearGradient>
+  </defs>
+
+  <!-- ascending step bars -->
+  <rect x="30" y="150" width="30" height="48" rx="7" fill="url(#nsGrad)" />
+  <rect x="70" y="118" width="30" height="80" rx="7" fill="url(#nsGrad)" />
+  <rect x="110" y="80" width="30" height="118" rx="7" fill="url(#nsGrad)" />
+
+  <!-- growth arrow -->
+  <path d="M46 198 L190 44" stroke="url(#nsGrad)" stroke-width="16" stroke-linecap="round" />
+  <polygon points="209,24 202,55 178,33" fill="url(#nsGrad)" />
+</svg>
