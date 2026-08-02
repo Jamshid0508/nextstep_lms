@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Alert, Button, Card, Form, Modal, Space, Table, message } from 'antd';
 import type { FormInstance, TableColumnsType } from 'antd';
 import { apiClient } from '../../api/client';
+import { extractErrorMessage } from '../../utils/error';
 
 export interface CrudPageColumn<T> {
   title: string;
@@ -77,7 +78,7 @@ export function CrudPage<T extends Record<string, any>>({
       onSuccess?.();
     } catch (err: any) {
       if (err?.errorFields) return; // Antd Form inline validation error
-      const errMsg = err?.response?.data?.message || err?.message || "Ma'lumotni saqlashda xatolik yuz berdi";
+      const errMsg = extractErrorMessage(err, "Ma'lumotni saqlashda xatolik yuz berdi");
       setFormError(errMsg);
       message.error(errMsg);
     } finally {
@@ -91,7 +92,7 @@ export function CrudPage<T extends Record<string, any>>({
       message.success("Ma'lumot o'chirildi");
       await fetchItems();
     } catch (err: any) {
-      const errMsg = err?.response?.data?.message || err?.message || "Ma'lumotni o'chirishda xatolik yuz berdi";
+      const errMsg = extractErrorMessage(err, "Ma'lumotni o'chirishda xatolik yuz berdi");
       message.error(errMsg);
     }
   };
@@ -166,7 +167,7 @@ export function CrudPage<T extends Record<string, any>>({
           <Alert
             type="error"
             showIcon
-            message="Xatolik yuz berdi"
+            message="Xatolik:"
             description={formError}
             style={{ marginBottom: 16, borderRadius: 8 }}
           />
