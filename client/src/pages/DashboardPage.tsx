@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card, Col, Row, Statistic, Table, Progress } from 'antd';
-import { AuditOutlined, BookOutlined, CheckSquareOutlined, DollarOutlined, SolutionOutlined, TeamOutlined, UserOutlined, FileTextOutlined } from '@ant-design/icons';
+import { AuditOutlined, BookOutlined, CheckSquareOutlined, DollarOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
@@ -34,9 +34,6 @@ interface DashboardSummary {
   attendancePercent?: number;
   branchStats?: BranchStat[];
   groupsCount?: number;
-  homeworksCount?: number;
-  quizzesCount?: number;
-  pendingSubmissions?: number;
   childrenCount?: number;
   paymentsCount?: number;
   unreadNotificationsCount?: number;
@@ -167,63 +164,33 @@ export function DashboardPage() {
         </>
       ) : role === 'TEACHER' ? (
         <Row gutter={16}>
-          <Col span={6}>
+          <Col span={12}>
             <Card>
-              <Statistic title="Guruhlar" value={summary?.groupsCount ?? 0} prefix={<BookOutlined />} />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card>
-              <Statistic title="Uy vazifalar" value={summary?.homeworksCount ?? 0} prefix={<FileTextOutlined />} />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card>
-              <Statistic title="Testlar" value={summary?.quizzesCount ?? 0} prefix={<SolutionOutlined />} />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card>
-              <Statistic title="Topshirilgan topshiriqlar" value={summary?.pendingSubmissions ?? 0} prefix={<CheckSquareOutlined />} />
+              <Statistic title="Guruhlarim" value={summary?.groupsCount ?? 0} prefix={<BookOutlined />} />
             </Card>
           </Col>
         </Row>
       ) : role === 'STUDENT' ? (
         <Row gutter={16}>
-          <Col span={8}>
+          <Col span={12}>
             <Card>
-              <Statistic title="Guruhlar" value={summary?.groupsCount ?? 0} prefix={<BookOutlined />} />
-            </Card>
-          </Col>
-          <Col span={8}>
-            <Card>
-              <Statistic title="Uy vazifalar" value={summary?.homeworksCount ?? 0} prefix={<FileTextOutlined />} />
-            </Card>
-          </Col>
-          <Col span={8}>
-            <Card>
-              <Statistic title="Testlar" value={summary?.quizzesCount ?? 0} prefix={<SolutionOutlined />} />
+              <Statistic title="Guruhlarim" value={summary?.groupsCount ?? 0} prefix={<BookOutlined />} />
             </Card>
           </Col>
         </Row>
       ) : role === 'PARENT' ? (
         <Row gutter={16}>
-          <Col span={6}>
+          <Col span={8}>
             <Card>
               <Statistic title="Farzandlar" value={summary?.childrenCount ?? 0} prefix={<TeamOutlined />} />
             </Card>
           </Col>
-          <Col span={6}>
-            <Card>
-              <Statistic title="Uy vazifalar" value={summary?.homeworksCount ?? 0} prefix={<FileTextOutlined />} />
-            </Card>
-          </Col>
-          <Col span={6}>
+          <Col span={8}>
             <Card>
               <Statistic title="To‘lovlar" value={summary?.paymentsCount ?? 0} prefix={<DollarOutlined />} />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col span={8}>
             <Card>
               <Statistic title="O‘qilmagan bildirishnomalar" value={summary?.unreadNotificationsCount ?? 0} prefix={<AuditOutlined />} />
             </Card>

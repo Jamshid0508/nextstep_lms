@@ -6,7 +6,6 @@ import {
   CheckSquareOutlined,
   DashboardOutlined,
   DollarOutlined,
-  FileTextOutlined,
   SettingOutlined,
   SolutionOutlined,
   TeamOutlined,
@@ -29,25 +28,17 @@ const adminNav: NavItem[] = [
   { key: '/finance', label: 'Moliya', icon: <SolutionOutlined /> },
   { key: '/audit-logs', label: 'Audit log', icon: <AuditOutlined /> },
   { key: '/settings', label: 'Sozlamalar', icon: <SettingOutlined /> },
-  { key: '/parent-relations', label: 'Ota-ona bog‘lanishi', icon: <TeamOutlined /> },
-  { key: '/homeworks', label: 'Uy vazifalari', icon: <FileTextOutlined /> },
-  { key: '/quizzes', label: 'Testlar', icon: <SolutionOutlined /> },
-  { key: '/grades', label: 'Baholar', icon: <AuditOutlined /> },
+  { key: '/parent-relations', label: "Ota-ona bog'lanishi", icon: <TeamOutlined /> },
 ];
 
 const teacherNav: NavItem[] = [
   { key: '/', label: 'Dashboard', icon: <DashboardOutlined /> },
-  { key: '/teacher/homeworks', label: 'Uy vazifalari', icon: <FileTextOutlined /> },
-  { key: '/teacher/quizzes', label: 'Testlar', icon: <SolutionOutlined /> },
 ];
 
 const studentNav: NavItem[] = [
   { key: '/', label: 'Dashboard', icon: <DashboardOutlined /> },
   { key: '/student/schedules', label: 'Dars jadvali', icon: <CalendarOutlined /> },
   { key: '/student/attendance', label: 'Davomatim', icon: <CheckSquareOutlined /> },
-  { key: '/student/homeworks', label: 'Uy vazifalari', icon: <FileTextOutlined /> },
-  { key: '/student/quizzes', label: 'Testlar', icon: <SolutionOutlined /> },
-  { key: '/student/grades', label: 'Baholarim', icon: <AuditOutlined /> },
   { key: '/student/payments', label: "To'lovlarim", icon: <DollarOutlined /> },
   { key: '/student/notifications', label: 'Bildirishnomalar', icon: <AuditOutlined /> },
 ];
@@ -55,8 +46,6 @@ const studentNav: NavItem[] = [
 const parentNav: NavItem[] = [
   { key: '/', label: 'Dashboard', icon: <DashboardOutlined /> },
   { key: '/parent/children', label: 'Farzandlar', icon: <TeamOutlined /> },
-  { key: '/parent/homeworks', label: 'Uy vazifalar', icon: <FileTextOutlined /> },
-  { key: '/parent/grades', label: 'Baholar', icon: <AuditOutlined /> },
   { key: '/parent/payments', label: "To'lovlar", icon: <DollarOutlined /> },
   { key: '/parent/notifications', label: 'Bildirishnomalar', icon: <AuditOutlined /> },
 ];
