@@ -6,6 +6,8 @@ import {
   CalendarOutlined,
   CheckSquareOutlined,
   DollarOutlined,
+  FallOutlined,
+  RiseOutlined,
   RightOutlined,
   TeamOutlined,
   UserOutlined,
@@ -85,94 +87,226 @@ export function DashboardPage() {
       title: 'Davomat',
       dataIndex: 'attendancePercent',
       key: 'attendancePercent',
-      render: (value: number) => <Progress percent={Math.round(value)} size="small" />,
+      render: (value: number) => <Progress percent={Math.round(value)} size="small" strokeColor="#178C8C" />,
     },
   ];
 
   return (
     <div style={{ display: 'grid', gap: 20 }}>
-      <Typography.Title level={2} style={{ margin: 0 }}>
-        Xush kelibsiz, {user?.fullName}
-      </Typography.Title>
+      <div>
+        <Typography.Title level={2} style={{ margin: 0, color: '#1E293B' }}>
+          Xush kelibsiz, {user?.fullName}
+        </Typography.Title>
+        <Typography.Text type="secondary">
+          Next Step platformasidagi bugungi ko'rsatkichlar va statistikalar.
+        </Typography.Text>
+      </div>
 
       {role === 'SUPER_ADMIN' || role === 'ADMIN' ? (
         <>
-          <Row gutter={16}>
-            <Col span={6}>
-              <Card>
-                <Statistic title="Talabalar" value={summary?.studentsCount ?? 0} prefix={<UserOutlined />} />
+          {/* Top Stat Cards Grid */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12} md={12} lg={6}>
+              <Card bodyStyle={{ padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Statistic title="Talabalar" value={summary?.studentsCount ?? 0} />
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <UserOutlined style={{ fontSize: 20, color: '#0284C7' }} />
+                  </div>
+                </div>
               </Card>
             </Col>
-            <Col span={6}>
-              <Card>
-                <Statistic title="O'qituvchilar" value={summary?.teachersCount ?? 0} prefix={<TeamOutlined />} />
+
+            <Col xs={24} sm={12} md={12} lg={6}>
+              <Card bodyStyle={{ padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Statistic title="O'qituvchilar" value={summary?.teachersCount ?? 0} />
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #F3E8FF 0%, #DDD6FE 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <TeamOutlined style={{ fontSize: 20, color: '#7E22CE' }} />
+                  </div>
+                </div>
               </Card>
             </Col>
-            <Col span={6}>
-              <Card>
-                <Statistic title="Faol guruhlar" value={summary?.activeGroupsCount ?? 0} prefix={<BookOutlined />} />
+
+            <Col xs={24} sm={12} md={12} lg={6}>
+              <Card bodyStyle={{ padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Statistic title="Faol guruhlar" value={summary?.activeGroupsCount ?? 0} />
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #CCFBF1 0%, #99F6E4 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <BookOutlined style={{ fontSize: 20, color: '#0D9488' }} />
+                  </div>
+                </div>
               </Card>
             </Col>
-            <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Muddati o'tgan to'lovlar"
-                  value={summary?.overduePaymentsCount ?? 0}
-                  prefix={<DollarOutlined />}
-                  styles={{ content: { color: (summary?.overduePaymentsCount ?? 0) > 0 ? '#ff4d4f' : undefined } }}
-                />
+
+            <Col xs={24} sm={12} md={12} lg={6}>
+              <Card bodyStyle={{ padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Statistic
+                    title="Muddati o'tgan to'lovlar"
+                    value={summary?.overduePaymentsCount ?? 0}
+                    styles={{ content: { color: (summary?.overduePaymentsCount ?? 0) > 0 ? '#EF4444' : undefined } }}
+                  />
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #FEE2E2 0%, #FCA5A5 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <DollarOutlined style={{ fontSize: 20, color: '#DC2626' }} />
+                  </div>
+                </div>
               </Card>
             </Col>
           </Row>
 
-          <Row gutter={16}>
-            <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Daromad"
-                  value={summary?.totalIncome ?? 0}
-                  prefix={<DollarOutlined />}
-                  formatter={(value) => new Intl.NumberFormat('uz-UZ', { style: 'currency', currency: 'UZS' }).format(Number(value))}
-                />
+          {/* Financial & Attendance Overview Row */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12} md={12} lg={6}>
+              <Card bodyStyle={{ padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Statistic
+                    title="Daromad"
+                    value={summary?.totalIncome ?? 0}
+                    formatter={(value) => new Intl.NumberFormat('uz-UZ', { style: 'currency', currency: 'UZS' }).format(Number(value))}
+                  />
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #DCFCE7 0%, #86EFAC 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <RiseOutlined style={{ fontSize: 20, color: '#16A34A' }} />
+                  </div>
+                </div>
               </Card>
             </Col>
-            <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Xarajat"
-                  value={summary?.totalExpense ?? 0}
-                  prefix={<DollarOutlined />}
-                  formatter={(value) => new Intl.NumberFormat('uz-UZ', { style: 'currency', currency: 'UZS' }).format(Number(value))}
-                />
+
+            <Col xs={24} sm={12} md={12} lg={6}>
+              <Card bodyStyle={{ padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Statistic
+                    title="Xarajat"
+                    value={summary?.totalExpense ?? 0}
+                    formatter={(value) => new Intl.NumberFormat('uz-UZ', { style: 'currency', currency: 'UZS' }).format(Number(value))}
+                  />
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #FFEDD5 0%, #FDBA74 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <FallOutlined style={{ fontSize: 20, color: '#EA580C' }} />
+                  </div>
+                </div>
               </Card>
             </Col>
-            <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Moliya balans"
-                  value={summary?.financeBalance ?? 0}
-                  prefix={<DollarOutlined />}
-                  formatter={(value) => new Intl.NumberFormat('uz-UZ', { style: 'currency', currency: 'UZS' }).format(Number(value))}
-                />
+
+            <Col xs={24} sm={12} md={12} lg={6}>
+              <Card bodyStyle={{ padding: 20, background: '#F0F9FF', borderColor: '#BAE6FD' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Statistic
+                    title="Moliya balans"
+                    value={summary?.financeBalance ?? 0}
+                    styles={{ content: { color: '#0369A1', fontWeight: 'bold' } }}
+                    formatter={(value) => new Intl.NumberFormat('uz-UZ', { style: 'currency', currency: 'UZS' }).format(Number(value))}
+                  />
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: '#0284C7',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <DollarOutlined style={{ fontSize: 20, color: '#FFFFFF' }} />
+                  </div>
+                </div>
               </Card>
             </Col>
-            <Col span={6}>
-              <Card>
-                <Statistic
-                  title="O'rtacha davomat"
-                  value={summary?.attendancePercent ? `${Math.round(summary.attendancePercent)}%` : '0%'}
-                  prefix={<CheckSquareOutlined />}
-                />
+
+            <Col xs={24} sm={12} md={12} lg={6}>
+              <Card bodyStyle={{ padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Statistic
+                    title="O'rtacha davomat"
+                    value={summary?.attendancePercent ? `${Math.round(summary.attendancePercent)}%` : '0%'}
+                  />
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #E0E7FF 0%, #A5B4FC 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <CheckSquareOutlined style={{ fontSize: 20, color: '#4F46E5' }} />
+                  </div>
+                </div>
+                <Progress percent={Math.round(summary?.attendancePercent ?? 0)} size="small" strokeColor="#4F46E5" style={{ marginTop: 8 }} />
               </Card>
             </Col>
           </Row>
 
+          {/* Branch Stats Table */}
           <Card title="Filiallar bo‘yicha statistikalar">
             <Table
               dataSource={summary?.branchStats ?? []}
               columns={branchColumns}
               rowKey="branchId"
               pagination={false}
+              scroll={{ x: 'max-content' }}
             />
           </Card>
         </>
@@ -188,7 +322,7 @@ export function DashboardPage() {
                 />
                 <div style={{ marginTop: 12 }}>
                   <Link to="/teacher/groups">
-                    <Button type="link" padding-0 size="small">
+                    <Button type="link" size="small" style={{ padding: 0 }}>
                       Guruhlarni ko'rish <RightOutlined />
                     </Button>
                   </Link>
@@ -204,7 +338,7 @@ export function DashboardPage() {
                 />
                 <div style={{ marginTop: 12 }}>
                   <Link to="/teacher/schedules">
-                    <Button type="link" size="small">
+                    <Button type="link" size="small" style={{ padding: 0 }}>
                       Jadvalni ko'rish <RightOutlined />
                     </Button>
                   </Link>
@@ -250,26 +384,26 @@ export function DashboardPage() {
           </Card>
         </>
       ) : role === 'STUDENT' ? (
-        <Row gutter={16}>
-          <Col span={12}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={12}>
             <Card>
               <Statistic title="Guruhlarim" value={summary?.groupsCount ?? 0} prefix={<BookOutlined />} />
             </Card>
           </Col>
         </Row>
       ) : role === 'PARENT' ? (
-        <Row gutter={16}>
-          <Col span={8}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={8}>
             <Card>
               <Statistic title="Farzandlar" value={summary?.childrenCount ?? 0} prefix={<TeamOutlined />} />
             </Card>
           </Col>
-          <Col span={8}>
+          <Col xs={24} sm={8}>
             <Card>
               <Statistic title="To‘lovlar" value={summary?.paymentsCount ?? 0} prefix={<DollarOutlined />} />
             </Card>
           </Col>
-          <Col span={8}>
+          <Col xs={24} sm={8}>
             <Card>
               <Statistic title="O‘qilmagan bildirishnomalar" value={summary?.unreadNotificationsCount ?? 0} prefix={<AuditOutlined />} />
             </Card>

@@ -148,7 +148,13 @@ export function CrudPage<T extends Record<string, any>>({
         </Space>
       }
     >
-      <Table rowKey="_id" columns={tableColumns} dataSource={items} loading={loading} />
+      <Table
+        rowKey="_id"
+        columns={tableColumns}
+        dataSource={items}
+        loading={loading}
+        scroll={{ x: 'max-content' }}
+      />
 
       <Modal
         title={editingId ? 'Tahrirlash' : "Yangi qo'shish"}
