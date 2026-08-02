@@ -126,25 +126,38 @@ export function AppShell() {
           collapsed={collapsed}
           theme="dark"
           width={240}
+          className="custom-sider"
           style={{
             overflow: 'auto',
             height: '100vh',
             position: 'sticky',
             top: 0,
             left: 0,
-            boxShadow: '2px 0 8px rgba(0,21,41,0.08)',
+            boxShadow: '4px 0 20px rgba(0, 0, 0, 0.15)',
           }}
         >
-          <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
-            <Logo variant={collapsed ? 'icon' : 'full'} size={collapsed ? 32 : 34} theme="dark" />
+          <div>
+            <div
+              style={{
+                height: 64,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 8,
+                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              }}
+            >
+              <Logo variant={collapsed ? 'icon' : 'full'} size={collapsed ? 32 : 34} theme="dark" />
+            </div>
+            <Menu
+              theme="dark"
+              mode="inline"
+              className="custom-sidebar-menu"
+              selectedKeys={[location.pathname]}
+              items={navItems}
+              onClick={({ key }) => navigate(key)}
+            />
           </div>
-          <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={navItems}
-            onClick={({ key }) => navigate(key)}
-          />
         </Sider>
       )}
 
@@ -154,14 +167,15 @@ export function AppShell() {
           placement="left"
           onClose={() => setDrawerOpen(false)}
           open={drawerOpen}
-          bodyStyle={{ padding: 0, background: '#0F2744' }}
-          headerStyle={{ background: '#0F2744', borderBottom: '1px solid #1E3A5F' }}
+          bodyStyle={{ padding: 0, background: '#0A192F' }}
+          headerStyle={{ background: '#0A192F', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}
           title={<Logo variant="full" size={32} theme="dark" />}
           width={260}
         >
           <Menu
             theme="dark"
             mode="inline"
+            className="custom-sidebar-menu"
             selectedKeys={[location.pathname]}
             items={navItems}
             onClick={({ key }) => {

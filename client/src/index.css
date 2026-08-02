@@ -85,6 +85,65 @@ body {
   transform: scale(1.15);
 }
 
+/* Interactive Custom Sidebar Styling */
+.custom-sider {
+  background: linear-gradient(180deg, #0A192F 0%, #0F2A4A 50%, #123B67 100%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.custom-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Sidebar Menu Item Customizations */
+.custom-sidebar-menu {
+  background: transparent !important;
+  border-inline-end: none !important;
+  padding: 8px !important;
+}
+
+.custom-sidebar-menu .ant-menu-item {
+  border-radius: 12px !important;
+  margin-block: 4px !important;
+  margin-inline: 4px !important;
+  width: calc(100% - 8px) !important;
+  height: 44px !important;
+  line-height: 44px !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  color: #94A3B8 !important;
+  font-weight: 500 !important;
+}
+
+.custom-sidebar-menu .ant-menu-item:hover {
+  color: #FFFFFF !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  transform: translateX(4px) !important;
+}
+
+.custom-sidebar-menu .ant-menu-item-selected {
+  background: linear-gradient(90deg, #178C8C 0%, #123B67 100%) !important;
+  color: #FFFFFF !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 15px rgba(23, 140, 140, 0.35) !important;
+}
+
+.custom-sidebar-menu .ant-menu-item .anticon {
+  font-size: 18px !important;
+  transition: transform 0.25s ease, color 0.25s ease !important;
+}
+
+.custom-sidebar-menu .ant-menu-item:hover .anticon {
+  transform: scale(1.2) rotate(4deg) !important;
+  color: #2ECC71 !important;
+}
+
+.custom-sidebar-menu .ant-menu-item-selected .anticon {
+  color: #2ECC71 !important;
+  transform: scale(1.1) !important;
+}
+
 /* Table styling polish */
 .ant-table-wrapper .ant-table {
   border-radius: 12px !important;
