@@ -14,13 +14,63 @@ function buildListQuery(query = {}) {
 
 export async function getSummary(req, res, next) {
   try {
-    const [studentsCount, teachersCount, activeGroupsCount, overduePaymentsCount, financeSummary, attendanceSummary, branches, studentBranchCounts, groupBranchCounts, paymentBranchStats, attendanceBranchStats] = await Promise.all([
-      User.countDocuments({ role: ROLES.STUDENT }),
-      User.countDocuments({ role: ROLES.TEACHER }),
-      Group.countDocuments({ status: GROUP_STATUS.ACTIVE }),
-      Payment.countDocuments({ status: PAYMENT_STATUS.OVERDUE }),
+    const isBranchAdmin = req.user?.role === ROLES.ADMIN && req.user?.branchId;
+    const userBranchId = isBranchAdmin ? req.user.branchId : null;
+
+    const studentMatch = userBranchId
+      ? { role: ROLES.STUDENT, branchId: userBranchId }
+      : { role: ROLES.STUDENT };
+
+    const teacherMatch = userBranchId
+      ? { role: ROLES.TEACHER, branchId: userBranchId }
+      : { role: ROLES.TEACHER };
+
+    const activeGroupMatch = userBranchId
+      ? { status: GROUP_STATUS.ACTIVE, branchId: userBranchId }
+      : { status: GROUP_STATUS.ACTIVE };
+
+    // Get group IDs belonging to this branch if filtered
+    const branchGroupFilter = userBranchId ? { branchId: userBranchId } : {};
+    const branchGroups = userBranchId
+      ? await Group.find(buildListQuery(branchGroupFilter)).select('_id')
+      : null;
+    const branchGroupIds = branchGroups ? branchGroups.map((g) => g._id) : null;
+
+    const paymentMatch = userBranchId
+      ? { status: PAYMENT_STATUS.OVERDUE, groupId: { $in: branchGroupIds } }
+      : { status: PAYMENT_STATUS.OVERDUE };
+
+    const financeMatch = userBranchId
+      ? buildListQuery({ branchId: userBranchId })
+      : buildListQuery();
+
+    const attendanceMatch = userBranchId
+      ? buildListQuery({ groupId: { $in: branchGroupIds } })
+      : buildListQuery();
+
+    const branchListQuery = userBranchId
+      ? buildListQuery({ _id: userBranchId })
+      : buildListQuery();
+
+    const [
+      studentsCount,
+      teachersCount,
+      activeGroupsCount,
+      overduePaymentsCount,
+      financeSummary,
+      attendanceSummary,
+      branches,
+      studentBranchCounts,
+      groupBranchCounts,
+      paymentBranchStats,
+      attendanceBranchStats,
+    ] = await Promise.all([
+      User.countDocuments(studentMatch),
+      User.countDocuments(teacherMatch),
+      Group.countDocuments(activeGroupMatch),
+      Payment.countDocuments(paymentMatch),
       FinanceSection.aggregate([
-        { $match: buildListQuery() },
+        { $match: financeMatch },
         {
           $group: {
             _id: null,
@@ -30,7 +80,7 @@ export async function getSummary(req, res, next) {
         },
       ]),
       Attendance.aggregate([
-        { $match: buildListQuery() },
+        { $match: attendanceMatch },
         { $unwind: '$records' },
         {
           $group: {
@@ -43,17 +93,17 @@ export async function getSummary(req, res, next) {
           },
         },
       ]),
-      Branch.find(buildListQuery()).select('_id name'),
+      Branch.find(branchListQuery).select('_id name'),
       User.aggregate([
-        { $match: buildListQuery({ role: ROLES.STUDENT }) },
+        { $match: buildListQuery({ role: ROLES.STUDENT, ...(userBranchId ? { branchId: userBranchId } : {}) }) },
         { $group: { _id: '$branchId', count: { $sum: 1 } } },
       ]),
       Group.aggregate([
-        { $match: buildListQuery({ status: GROUP_STATUS.ACTIVE }) },
+        { $match: buildListQuery({ status: GROUP_STATUS.ACTIVE, ...(userBranchId ? { branchId: userBranchId } : {}) }) },
         { $group: { _id: '$branchId', count: { $sum: 1 } } },
       ]),
       Payment.aggregate([
-        { $match: buildListQuery() },
+        { $match: buildListQuery(userBranchId ? { groupId: { $in: branchGroupIds } } : {}) },
         {
           $lookup: {
             from: 'groups',
@@ -72,7 +122,7 @@ export async function getSummary(req, res, next) {
         },
       ]),
       Attendance.aggregate([
-        { $match: buildListQuery() },
+        { $match: buildListQuery(userBranchId ? { groupId: { $in: branchGroupIds } } : {}) },
         {
           $lookup: {
             from: 'groups',

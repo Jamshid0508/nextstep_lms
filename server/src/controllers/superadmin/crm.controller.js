@@ -25,9 +25,21 @@ function buildListQuery(query = {}) {
   return { ...query, deleted: { $ne: true } };
 }
 
+function getAdminBranchFilter(req, query = {}) {
+  const base = buildListQuery(query);
+  if (req.user?.role === ROLES.ADMIN && req.user?.branchId) {
+    base.branchId = req.user.branchId;
+  }
+  return base;
+}
+
 export async function listBranches(req, res, next) {
   try {
-    const branches = await Branch.find(buildListQuery()).sort({ createdAt: -1 });
+    const filter = buildListQuery();
+    if (req.user?.role === ROLES.ADMIN && req.user?.branchId) {
+      filter._id = req.user.branchId;
+    }
+    const branches = await Branch.find(filter).sort({ createdAt: -1 });
     ok(res, branches);
   } catch (err) {
     next(err);
@@ -109,7 +121,8 @@ export async function deleteCourse(req, res, next) {
 
 export async function listGroups(req, res, next) {
   try {
-    const groups = await Group.find(buildListQuery())
+    const filter = getAdminBranchFilter(req);
+    const groups = await Group.find(filter)
       .populate('courseId', 'name')
       .populate('teacherId', 'fullName')
       .populate('branchId', 'name')
@@ -123,6 +136,9 @@ export async function listGroups(req, res, next) {
 
 export async function createGroup(req, res, next) {
   try {
+    if (req.user?.role === ROLES.ADMIN && req.user?.branchId && !req.body.branchId) {
+      req.body.branchId = req.user.branchId;
+    }
     const group = await Group.create(req.body);
     ok(res, group, 201);
   } catch (err) {
@@ -156,7 +172,7 @@ export async function deleteGroup(req, res, next) {
 export async function listUsers(req, res, next) {
   try {
     const role = req.query.role ? String(req.query.role).toUpperCase() : undefined;
-    const query = buildListQuery();
+    const query = getAdminBranchFilter(req);
 
     if (role && Object.values(ROLES).includes(role)) {
       query.role = role;
@@ -442,13 +458,20 @@ export async function deleteUser(req, res, next) {
 
 export async function getReferenceData(req, res, next) {
   try {
+    const isBranchAdmin = req.user?.role === ROLES.ADMIN && req.user?.branchId;
+    const userBranchId = isBranchAdmin ? req.user.branchId : null;
+
+    const branchQuery = userBranchId ? buildListQuery({ _id: userBranchId }) : buildListQuery();
+    const groupQuery = userBranchId ? buildListQuery({ branchId: userBranchId }) : buildListQuery();
+    const userBranchQuery = userBranchId ? { branchId: userBranchId } : {};
+
     const [branches, courses, teachers, students, parents, groups] = await Promise.all([
-      Branch.find(buildListQuery()).select('_id name').sort({ name: 1 }),
+      Branch.find(branchQuery).select('_id name').sort({ name: 1 }),
       Course.find(buildListQuery()).select('_id name price').sort({ name: 1 }),
-      User.find(buildListQuery()).where('role').in([ROLES.TEACHER, ROLES.ADMIN]).select('_id fullName').sort({ fullName: 1 }),
-      User.find(buildListQuery()).where('role').equals(ROLES.STUDENT).select('_id fullName studentType').sort({ fullName: 1 }),
+      User.find(buildListQuery(userBranchQuery)).where('role').in([ROLES.TEACHER, ROLES.ADMIN]).select('_id fullName').sort({ fullName: 1 }),
+      User.find(buildListQuery(userBranchQuery)).where('role').equals(ROLES.STUDENT).select('_id fullName studentType').sort({ fullName: 1 }),
       User.find(buildListQuery()).where('role').equals(ROLES.PARENT).select('_id fullName').sort({ fullName: 1 }),
-      Group.find(buildListQuery()).populate('courseId', 'name price').select('_id name courseId').sort({ name: 1 }),
+      Group.find(groupQuery).populate('courseId', 'name price').select('_id name courseId').sort({ name: 1 }),
     ]);
 
     ok(res, { branches, courses, teachers, students, parents, groups });
@@ -528,7 +551,13 @@ export async function unlinkChildFromParent(req, res, next) {
 
 export async function listSchedules(req, res, next) {
   try {
-    const schedules = await Schedule.find(buildListQuery())
+    const queryFilter = buildListQuery();
+    if (req.user?.role === ROLES.ADMIN && req.user?.branchId) {
+      const branchGroups = await Group.find({ branchId: req.user.branchId }).select('_id');
+      queryFilter.groupId = { $in: branchGroups.map((g) => g._id) };
+    }
+
+    const schedules = await Schedule.find(queryFilter)
       .populate('groupId', 'name')
       .populate('teacherId', 'fullName')
       .sort({ createdAt: -1 });
@@ -576,7 +605,18 @@ export async function listAttendances(req, res, next) {
   try {
     const groupId = req.query?.groupId;
     const queryFilter = buildListQuery();
-    if (groupId) queryFilter.groupId = groupId;
+
+    if (req.user?.role === ROLES.ADMIN && req.user?.branchId) {
+      const branchGroups = await Group.find({ branchId: req.user.branchId }).select('_id');
+      const branchGroupIds = branchGroups.map((g) => g._id);
+      if (groupId) {
+        queryFilter.groupId = groupId;
+      } else {
+        queryFilter.groupId = { $in: branchGroupIds };
+      }
+    } else if (groupId) {
+      queryFilter.groupId = groupId;
+    }
 
     const attendances = await Attendance.find(queryFilter)
       .populate('groupId', 'name')
@@ -687,7 +727,13 @@ export async function deleteAttendance(req, res, next) {
 
 export async function listPayments(req, res, next) {
   try {
-    const payments = await Payment.find(buildListQuery())
+    const queryFilter = buildListQuery();
+    if (req.user?.role === ROLES.ADMIN && req.user?.branchId) {
+      const branchGroups = await Group.find({ branchId: req.user.branchId }).select('_id');
+      queryFilter.groupId = { $in: branchGroups.map((g) => g._id) };
+    }
+
+    const payments = await Payment.find(queryFilter)
       .populate('studentId', 'fullName')
       .populate('groupId', 'name')
       .populate('createdBy', 'fullName')
@@ -701,7 +747,10 @@ export async function listPayments(req, res, next) {
 
 export async function createPayment(req, res, next) {
   try {
-    const payment = await Payment.create(req.body);
+    const payment = await Payment.create({
+      ...req.body,
+      createdBy: req.user?._id,
+    });
     ok(res, payment, 201);
   } catch (err) {
     next(err);
@@ -734,8 +783,9 @@ export async function deletePayment(req, res, next) {
 
 export async function getFinanceSummary(req, res, next) {
   try {
+    const filter = getAdminBranchFilter(req);
     const summary = await FinanceSection.aggregate([
-      { $match: buildListQuery() },
+      { $match: filter },
       {
         $group: {
           _id: null,
@@ -766,7 +816,8 @@ export async function getFinanceSummary(req, res, next) {
 
 export async function listFinance(req, res, next) {
   try {
-    const finance = await FinanceSection.find(buildListQuery())
+    const filter = getAdminBranchFilter(req);
+    const finance = await FinanceSection.find(filter)
       .populate('createdBy', 'fullName')
       .populate('teacherId', 'fullName')
       .populate('studentId', 'fullName')
@@ -781,11 +832,15 @@ export async function listFinance(req, res, next) {
 
 export async function createFinance(req, res, next) {
   try {
-    const finance = await FinanceSection.create({
+    const payload = {
       ...req.body,
       category: req.body.category ?? (req.body.kind === 'income' ? 'income' : 'expense'),
       date: req.body.date ?? new Date(),
-    });
+    };
+    if (req.user?.role === ROLES.ADMIN && req.user?.branchId && !payload.branchId) {
+      payload.branchId = req.user.branchId;
+    }
+    const finance = await FinanceSection.create(payload);
     ok(res, finance, 201);
   } catch (err) {
     next(err);
