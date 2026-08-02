@@ -119,9 +119,9 @@ export function AppShell() {
       {/* Desktop Sider */}
       {!isMobile && (
         <Sider
+          trigger={null}
           collapsible
           collapsed={collapsed}
-          onCollapse={setCollapsed}
           theme="dark"
           width={240}
           style={{
