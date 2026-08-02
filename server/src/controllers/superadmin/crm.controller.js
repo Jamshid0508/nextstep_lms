@@ -188,14 +188,32 @@ function normalizeStudentType(value) {
 
 export async function createUser(req, res, next) {
   try {
-    const { password, ...rest } = req.body;
+    const { password, phone, email, ...rest } = req.body;
 
     if (!password || String(password).trim().length < 6) {
-      throw ApiError.badRequest('Parol kamida 6 belgidan iborat bo’lishi kerak');
+      throw ApiError.badRequest("Parol kamida 6 belgidan iborat bo'lishi kerak");
+    }
+
+    if (phone) {
+      const cleanPhone = String(phone).trim();
+      const existingPhone = await User.findOne({ phone: cleanPhone });
+      if (existingPhone) {
+        throw ApiError.conflict(`"${cleanPhone}" telefon raqamli foydalanuvchi allaqachon mavjud`);
+      }
+    }
+
+    if (email && String(email).trim()) {
+      const cleanEmail = String(email).trim().toLowerCase();
+      const existingEmail = await User.findOne({ email: cleanEmail });
+      if (existingEmail) {
+        throw ApiError.conflict(`"${cleanEmail}" email manzilli foydalanuvchi allaqachon mavjud`);
+      }
     }
 
     const user = await User.create({
       ...rest,
+      phone: phone ? String(phone).trim() : undefined,
+      email: email && String(email).trim() ? String(email).trim().toLowerCase() : undefined,
       passwordHash: await hashPassword(password),
       studentType: rest.role === ROLES.STUDENT ? normalizeStudentType(rest.studentType) : rest.studentType,
     });
@@ -368,8 +386,30 @@ export async function downloadUserImportTemplate(req, res, next) {
 
 export async function updateUser(req, res, next) {
   try {
-    const { password, ...rest } = req.body;
-    const updatePayload = { ...rest };
+    const { password, phone, email, ...rest } = req.body;
+    const userId = req.params.id;
+
+    if (phone) {
+      const cleanPhone = String(phone).trim();
+      const existingPhone = await User.findOne({ phone: cleanPhone, _id: { $ne: userId } });
+      if (existingPhone) {
+        throw ApiError.conflict(`"${cleanPhone}" telefon raqamli boshqa foydalanuvchi mavjud`);
+      }
+    }
+
+    if (email && String(email).trim()) {
+      const cleanEmail = String(email).trim().toLowerCase();
+      const existingEmail = await User.findOne({ email: cleanEmail, _id: { $ne: userId } });
+      if (existingEmail) {
+        throw ApiError.conflict(`"${cleanEmail}" email manzilli boshqa foydalanuvchi mavjud`);
+      }
+    }
+
+    const updatePayload = {
+      ...rest,
+      ...(phone ? { phone: String(phone).trim() } : {}),
+      ...(email && String(email).trim() ? { email: String(email).trim().toLowerCase() } : {}),
+    };
 
     if (password) {
       updatePayload.passwordHash = await hashPassword(password);
@@ -379,7 +419,7 @@ export async function updateUser(req, res, next) {
       updatePayload.studentType = 'restricted';
     }
 
-    const user = await User.findByIdAndUpdate(req.params.id, updatePayload, {
+    const user = await User.findByIdAndUpdate(userId, updatePayload, {
       new: true,
       runValidators: true,
     });

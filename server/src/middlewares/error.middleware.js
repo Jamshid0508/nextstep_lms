@@ -15,7 +15,14 @@ export function errorHandler(err, req, res, _next) {
   }
 
   if (err?.code === 11000) {
-    return fail(res, 409, 'DUPLICATE_KEY', 'Bu qiymat allaqachon mavjud', err.keyValue);
+    const fieldNames = { phone: 'telefon raqam', email: 'email manzil' };
+    const keys = err.keyValue
+      ? Object.keys(err.keyValue)
+          .map((k) => fieldNames[k] || k)
+          .join(', ')
+      : '';
+    const msg = keys ? `Ushbu ${keys} allaqachon ro'yxatdan o'tgan` : "Ushbu ma'lumot allaqachon mavjud";
+    return fail(res, 409, 'DUPLICATE_KEY', msg, err.keyValue);
   }
 
   console.error(err);

@@ -71,8 +71,10 @@ export function CrudPage<T extends Record<string, any>>({
       setEditingId(null);
       await fetchItems();
       onSuccess?.();
-    } catch {
-      message.error('Ma’lumotni saqlashda xatolik yuz berdi');
+    } catch (err: any) {
+      if (err?.errorFields) return; // Antd Form inline validation error
+      const errMsg = err?.response?.data?.message || err?.message || 'Ma’lumotni saqlashda xatolik yuz berdi';
+      message.error(errMsg);
     }
   };
 
@@ -81,8 +83,9 @@ export function CrudPage<T extends Record<string, any>>({
       await apiClient.delete(getItemEndpoint(id));
       message.success('Ma’lumot o’chirildi');
       await fetchItems();
-    } catch {
-      message.error('Ma’lumotni o’chirishda xatolik yuz berdi');
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Ma’lumotni o’chirishda xatolik yuz berdi';
+      message.error(errMsg);
     }
   };
 
