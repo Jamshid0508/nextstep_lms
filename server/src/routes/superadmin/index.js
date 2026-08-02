@@ -60,6 +60,7 @@ router.patch('/schedules/:id', validateBody(scheduleUpdateSchema), crmController
 router.delete('/schedules/:id', crmController.deleteSchedule);
 
 router.get('/attendance', crmController.listAttendances);
+router.get('/attendance/group/:groupId', crmController.getGroupAttendanceDetails);
 router.post('/attendance', validateBody(attendanceSchema), crmController.createAttendance);
 router.patch('/attendance/:id', validateBody(attendanceUpdateSchema), crmController.updateAttendance);
 router.delete('/attendance/:id', crmController.deleteAttendance);
@@ -72,6 +73,7 @@ router.delete('/payments/:id', crmController.deletePayment);
 router.get('/finance', crmController.listFinance);
 router.get('/finance/summary', crmController.getFinanceSummary);
 router.get('/finance/payroll', crmController.listTeacherPayroll);
+router.get('/finance/payroll/breakdown/:teacherId', crmController.getTeacherPayrollBreakdown);
 router.post('/finance/payroll/calculate', crmController.calculateTeacherPayroll);
 router.post('/finance', validateBody(financeSchema), crmController.createFinance);
 router.patch('/finance/:id', validateBody(financeUpdateSchema), crmController.updateFinance);

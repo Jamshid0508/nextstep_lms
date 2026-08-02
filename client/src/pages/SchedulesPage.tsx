@@ -1,6 +1,30 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Badge, Button, Card, Col, Input, Row, Space, Typography } from 'antd';
-import { LeftOutlined, RightOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+  Badge,
+  Button,
+  Card,
+  Col,
+  Form,
+  Input,
+  Modal,
+  Row,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from 'antd';
+import {
+  LeftOutlined,
+  RightOutlined,
+  ReloadOutlined,
+  PlusOutlined,
+  CalendarOutlined,
+  ClockCircleOutlined,
+  UserOutlined,
+  DeleteOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { apiClient } from '../api/client';
 
@@ -47,6 +71,16 @@ const WEEKDAY_INDEX: Record<string, number> = {
   SUNDAY: 0,
 };
 
+const weekDaysOptions = [
+  { value: 'MONDAY', label: 'Dushanba (Du)' },
+  { value: 'TUESDAY', label: 'Seshanba (Se)' },
+  { value: 'WEDNESDAY', label: 'Chorshanba (Cho)' },
+  { value: 'THURSDAY', label: 'Payshanba (Pa)' },
+  { value: 'FRIDAY', label: 'Juma (Ju)' },
+  { value: 'SATURDAY', label: 'Shanba (Sha)' },
+  { value: 'SUNDAY', label: 'Yakshanba (Yak)' },
+];
+
 function getMonthCells(year: number, month: number) {
   const start = dayjs(new Date(year, month, 1));
   const totalDays = start.daysInMonth();
@@ -55,11 +89,6 @@ function getMonthCells(year: number, month: number) {
     const day = idx - startIndex + 1;
     return day >= 1 && day <= totalDays ? start.date(day) : null;
   });
-}
-
-function getWeekStart(date: dayjs.Dayjs) {
-  const weekday = date.day();
-  return weekday === 0 ? date.subtract(6, 'day') : date.subtract(weekday - 1, 'day');
 }
 
 function normalizeWeekDay(value: string) {
@@ -78,43 +107,61 @@ function isScheduleOnDate(schedule: ScheduleRecord, date: dayjs.Dayjs) {
 export function SchedulesPage() {
   const [schedules, setSchedules] = useState<ScheduleRecord[]>([]);
   const [references, setReferences] = useState<ReferenceData>({ groups: [], teachers: [] });
+  const [loading, setLoading] = useState(false);
+
   const [year, setYear] = useState(dayjs().year());
-  const [groupQuery, setGroupQuery] = useState('');
-  const [teacherQuery, setTeacherQuery] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
   const [viewMode, setViewMode] = useState<'week' | 'day' | 'month' | 'year' | 'list'>('year');
 
-  useEffect(() => {
-    void apiClient.get<{ success: true; data: ReferenceData }>('/superadmin/references').then(({ data }) => {
-      setReferences({ groups: data.data.groups ?? [], teachers: data.data.teachers ?? [] });
-    });
-  }, []);
+  // Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [form] = Form.useForm();
 
-  useEffect(() => {
-    const load = async () => {
+  // Load References
+  const fetchReferences = async () => {
+    try {
+      const { data } = await apiClient.get<{ success: true; data: ReferenceData }>('/superadmin/references');
+      setReferences({
+        groups: data.data.groups ?? [],
+        teachers: data.data.teachers ?? [],
+      });
+    } catch {
+      // ignore
+    }
+  };
+
+  // Load Schedules
+  const fetchSchedules = async () => {
+    setLoading(true);
+    try {
       const { data } = await apiClient.get<{ success: true; data: ScheduleRecord[] }>('/superadmin/schedules');
-      setSchedules(data.data);
-    };
-    void load();
+      setSchedules(data.data ?? []);
+    } catch {
+      message.error("Dars jadvallarini yuklashda xatolik yuz berdi");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchReferences();
+    void fetchSchedules();
   }, []);
 
+  // Filtered Schedules
   const filteredSchedules = useMemo(() => {
-    const hasReferenceData = references.groups.length > 0 || references.teachers.length > 0;
-
     return schedules.filter((schedule) => {
-      const groupMatches = groupQuery
-        ? schedule.groupId?.name?.toLowerCase().includes(groupQuery.toLowerCase())
-        : true;
-      const teacherMatches = teacherQuery
-        ? schedule.teacherId?.fullName?.toLowerCase().includes(teacherQuery.toLowerCase())
-        : true;
-      const referenceMatches = hasReferenceData
-        ? Boolean(references.groups.some((group) => group._id === schedule.groupId?._id) || references.teachers.some((teacher) => teacher._id === schedule.teacherId?._id))
-        : true;
-      return Boolean(groupMatches && teacherMatches && referenceMatches);
-    });
-  }, [schedules, groupQuery, teacherQuery, references]);
+      const gId = (schedule.groupId as any)?._id || schedule.groupId;
+      const tId = (schedule.teacherId as any)?._id || schedule.teacherId;
 
-  const [selectedDate, setSelectedDate] = useState(dayjs());
+      const groupMatches = !selectedGroupId || String(gId) === selectedGroupId;
+      const teacherMatches = !selectedTeacherId || String(tId) === selectedTeacherId;
+
+      return groupMatches && teacherMatches;
+    });
+  }, [schedules, selectedGroupId, selectedTeacherId]);
 
   const scheduleMap = useMemo(() => {
     const map = new Map<string, ScheduleRecord[]>();
@@ -135,62 +182,124 @@ export function SchedulesPage() {
   }, [filteredSchedules, year]);
 
   const todayKey = dayjs().format('YYYY-MM-DD');
-  const weekStart = getWeekStart(selectedDate);
-  const weekDays = Array.from({ length: 7 }, (_, idx) => weekStart.add(idx, 'day'));
-  const monthDates = getMonthCells(year, selectedDate.month());
-  const yearMonths = Array.from({ length: 12 }, (_, idx) => idx);
+
+  // Handle Create Schedule
+  const handleCreateSchedule = async () => {
+    try {
+      const values = await form.validateFields();
+      setSubmitting(true);
+      await apiClient.post('/superadmin/schedules', values);
+      message.success("Yangisiz dars jadvali muvaffaqiyatli qo'shildi");
+      form.resetFields();
+      setModalOpen(false);
+      await fetchSchedules();
+    } catch {
+      message.error("Jadvalni saqlashda xatolik yuz berdi");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle Delete Schedule
+  const handleDeleteSchedule = async (id: string) => {
+    try {
+      await apiClient.delete(`/superadmin/schedules/${id}`);
+      message.success("Dars jadvali o'chirildi");
+      await fetchSchedules();
+    } catch {
+      message.error("Dars jadvalini o'chirishda xatolik yuz berdi");
+    }
+  };
 
   return (
     <div style={{ paddingBottom: 24 }}>
+      {/* Top Header Card */}
       <Card style={{ borderRadius: 24, overflow: 'hidden', marginBottom: 24 }} bodyStyle={{ padding: 24 }}>
         <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
           <Col>
             <Typography.Title level={3} style={{ margin: 0 }}>
+              <CalendarOutlined style={{ color: '#722ed1', marginRight: 10 }} />
               Dars jadvali
             </Typography.Title>
           </Col>
           <Col>
             <Space wrap>
-              {['week', 'day', 'month', 'year', 'list'].map((mode) => (
+              {['year', 'list'].map((mode) => (
                 <Button
                   key={mode}
                   type={viewMode === mode ? 'primary' : 'default'}
                   onClick={() => setViewMode(mode as typeof viewMode)}
+                  style={{ borderRadius: 8, fontWeight: 600 }}
                 >
-                  {mode === 'week'
-                    ? 'Hafta'
-                    : mode === 'day'
-                    ? 'Kun'
-                    : mode === 'month'
-                    ? 'Oy'
-                    : mode === 'year'
-                    ? 'Yil'
-                    : "Ro'yxat"}
+                  {mode === 'year' ? 'Yillik ko‘rinish' : "Ro'yxat bo'yicha"}
                 </Button>
               ))}
-              <Button icon={<ReloadOutlined />} onClick={() => setYear(dayjs().year())}>
+              <Button icon={<ReloadOutlined />} onClick={() => void fetchSchedules()} style={{ borderRadius: 8 }}>
                 Yangilash
               </Button>
-              <Button type="primary" icon={<PlusOutlined />}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                style={{ borderRadius: 8, backgroundColor: '#722ed1', borderColor: '#722ed1', fontWeight: 600 }}
+                onClick={() => setModalOpen(true)}
+              >
                 Jadval qo‘shish
               </Button>
             </Space>
           </Col>
         </Row>
 
-        <Row gutter={[16, 16]} align="middle" style={{ marginBottom: 20 }}>
+        {/* Filter Bar with Select Dropdowns */}
+        <Row gutter={[16, 16]} align="middle">
+          {/* Guruh Select */}
           <Col xs={24} md={8}>
-            <Input.Search placeholder="Guruh" allowClear value={groupQuery} onChange={(event) => setGroupQuery(event.target.value)} />
+            <Form.Item label={<Typography.Text strong>GURUH</Typography.Text>} style={{ margin: 0 }}>
+              <Select
+                showSearch
+                allowClear
+                placeholder="Barcha guruhlar"
+                optionFilterProp="label"
+                value={selectedGroupId || undefined}
+                onChange={(val) => setSelectedGroupId(val || '')}
+                style={{ width: '100%' }}
+                size="large"
+                options={[
+                  { value: '', label: 'Barcha guruhlar' },
+                  ...references.groups.map((g) => ({ value: g._id, label: g.name })),
+                ]}
+              />
+            </Form.Item>
           </Col>
+
+          {/* O'qituvchi Select */}
           <Col xs={24} md={8}>
-            <Input.Search placeholder="O‘qituvchi" allowClear value={teacherQuery} onChange={(event) => setTeacherQuery(event.target.value)} />
+            <Form.Item label={<Typography.Text strong>O'QITUVCHI</Typography.Text>} style={{ margin: 0 }}>
+              <Select
+                showSearch
+                allowClear
+                placeholder="Barcha o'qituvchilar"
+                optionFilterProp="label"
+                value={selectedTeacherId || undefined}
+                onChange={(val) => setSelectedTeacherId(val || '')}
+                style={{ width: '100%' }}
+                size="large"
+                options={[
+                  { value: '', label: "Barcha o'qituvchilar" },
+                  ...references.teachers.map((t) => ({ value: t._id, label: t.fullName })),
+                ]}
+              />
+            </Form.Item>
           </Col>
+
+          {/* Year Controls */}
           <Col xs={24} md={8} style={{ textAlign: 'right' }}>
-            <Space>
-              <Button icon={<LeftOutlined />} onClick={() => setYear((y) => y - 1)} />
-              <Button type="default">{year}</Button>
-              <Button icon={<RightOutlined />} onClick={() => setYear((y) => y + 1)} />
-              <Button type="default" onClick={() => setYear(dayjs().year())}>
+            <Space style={{ marginTop: 24 }}>
+              <Button icon={<LeftOutlined />} onClick={() => setYear((y) => y - 1)} style={{ borderRadius: 8 }} />
+              <Typography.Title level={4} style={{ margin: 0, paddingInline: 8 }}>
+                {year}
+              </Typography.Title>
+              <Button icon={<RightOutlined />} onClick={() => setYear((y) => y + 1)} style={{ borderRadius: 8 }} />
+              <Button type="default" onClick={() => setYear(dayjs().year())} style={{ borderRadius: 8 }}>
                 Bugun
               </Button>
             </Space>
@@ -198,227 +307,198 @@ export function SchedulesPage() {
         </Row>
       </Card>
 
-      {viewMode === 'week' && (
-        <Card style={{ borderRadius: 24, marginBottom: 24, background: '#f7f8ff' }} bodyStyle={{ padding: 24 }}>
-          <Typography.Title level={4}>Haftalik ko‘rinish</Typography.Title>
-          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col xs={24} md={12}>
-              <Space>
-                <Button onClick={() => setSelectedDate((date) => date.subtract(7, 'day'))}>◀ Oldingi hafta</Button>
-                <Button onClick={() => setSelectedDate(dayjs())}>Bugun</Button>
-                <Button onClick={() => setSelectedDate((date) => date.add(7, 'day'))}>Keyingi hafta ▶</Button>
-              </Space>
-            </Col>
-            <Col xs={24} md={12} style={{ textAlign: 'right' }}>
-              <Typography.Text strong>{weekStart.format('DD.MM.YYYY')} — {weekStart.add(6, 'day').format('DD.MM.YYYY')}</Typography.Text>
-            </Col>
-          </Row>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 12 }}>
-            {weekDays.map((date) => {
-              const key = date.format('YYYY-MM-DD');
-              const daySchedules = scheduleMap.get(key) ?? [];
-
-              return (
-                <Card key={key} bodyStyle={{ padding: 16, minHeight: 180, borderRadius: 18 }}>
-                  <Typography.Text strong>{DAY_LABELS[date.day()]}, {date.format('DD')}</Typography.Text>
-                  <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-                    {MONTH_LABELS[date.month()]}
-                  </Typography.Text>
-
-                  {daySchedules.length === 0 ? (
-                    <Typography.Text type="secondary">Dars yo‘q</Typography.Text>
-                  ) : (
-                    daySchedules.map((schedule) => (
-                      <div key={schedule._id} style={{ marginBottom: 10, padding: 10, borderRadius: 14, background: '#fff', boxShadow: '0 6px 12px rgba(15, 23, 42, 0.05)' }}>
-                        <Typography.Text strong>{schedule.groupId?.name ?? 'Guruh'}</Typography.Text>
-                        <div style={{ marginTop: 4 }}>
-                          <Typography.Text type="secondary">{schedule.startTime} — {schedule.endTime}</Typography.Text>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      {viewMode === 'day' && (
-        <Card style={{ borderRadius: 24, marginBottom: 24, background: '#f3f7ff' }} bodyStyle={{ padding: 24 }}>
-          <Typography.Title level={4}>Kunlik ko‘rinish</Typography.Title>
-          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col xs={24} md={12}>
-              <Space>
-                <Button onClick={() => setSelectedDate((date) => date.subtract(1, 'day'))}>◀</Button>
-                <Button onClick={() => setSelectedDate(dayjs())}>Bugun</Button>
-                <Button onClick={() => setSelectedDate((date) => date.add(1, 'day'))}>▶</Button>
-              </Space>
-            </Col>
-            <Col xs={24} md={12} style={{ textAlign: 'right' }}>
-              <Typography.Text strong>{selectedDate.format('DD.MM.YYYY')}</Typography.Text>
-            </Col>
-          </Row>
-          <Card style={{ borderRadius: 18, padding: 20 }}>
-            <Typography.Title level={5}>{DAY_LABELS[selectedDate.day()]}, {selectedDate.format('DD MMMM YYYY')}</Typography.Title>
-            {scheduleMap.get(selectedDate.format('YYYY-MM-DD'))?.length ? (
-              scheduleMap.get(selectedDate.format('YYYY-MM-DD'))?.map((schedule) => (
-                <Card key={schedule._id} style={{ marginBottom: 16, borderRadius: 16 }}>
-                  <Typography.Text strong>{schedule.groupId?.name ?? 'Guruh'}</Typography.Text>
-                  <div>{schedule.startTime} — {schedule.endTime}</div>
-                  <Typography.Text type="secondary">{schedule.teacherId?.fullName ?? 'O‘qituvchi'}</Typography.Text>
-                </Card>
-              ))
-            ) : (
-              <Typography.Text type="secondary">Bugun jadvalda dars yo‘q</Typography.Text>
-            )}
-          </Card>
-        </Card>
-      )}
-
-      {viewMode === 'month' && (
-        <Card style={{ borderRadius: 24, marginBottom: 24, background: '#f0f5ff' }} bodyStyle={{ padding: 24 }}>
-          <Typography.Title level={4}>Oylik ko‘rinish</Typography.Title>
-          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col xs={24} md={12}>
-              <Space>
-                <Button onClick={() => setSelectedDate((date) => date.subtract(1, 'month'))}>◀</Button>
-                <Button onClick={() => setSelectedDate(dayjs())}>Bugun</Button>
-                <Button onClick={() => setSelectedDate((date) => date.add(1, 'month'))}>▶</Button>
-              </Space>
-            </Col>
-            <Col xs={24} md={12} style={{ textAlign: 'right' }}>
-              <Typography.Text strong>{MONTH_LABELS[selectedDate.month()]} {selectedDate.year()}</Typography.Text>
-            </Col>
-          </Row>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 10, marginBottom: 12, textAlign: 'center' }}>
-            {DAY_LABELS.map((label) => (
-              <Typography.Text key={label} type="secondary" style={{ fontSize: 12, fontWeight: 700 }}>
-                {label}
-              </Typography.Text>
-            ))}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 10 }}>
-            {monthDates.map((date, idx) => {
-              if (!date) {
-                return <div key={idx} style={{ minHeight: 72, background: '#fff', borderRadius: 16 }} />;
-              }
-
-              const dateKey = date.format('YYYY-MM-DD');
-              const daySchedules = scheduleMap.get(dateKey) ?? [];
-              const isCurrentMonth = date.month() === selectedDate.month();
-
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    minHeight: 72,
-                    padding: 12,
-                    borderRadius: 16,
-                    background: isCurrentMonth ? '#fff' : '#f7f8ff',
-                    border: dateKey === todayKey ? '1px solid #1d39c4' : '1px solid transparent',
-                  }}
-                >
-                  <Typography.Text strong>{date.date()}</Typography.Text>
-                  <div style={{ marginTop: 8 }}>
-                    {daySchedules.slice(0, 2).map((schedule) => (
-                      <div key={schedule._id} style={{ marginBottom: 6, padding: 6, borderRadius: 12, background: '#f4f6ff' }}>
-                        <Typography.Text strong style={{ fontSize: 12 }}>{schedule.groupId?.name}</Typography.Text>
-                        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.65)' }}>{schedule.startTime}</div>
-                      </div>
-                    ))}
-                    {daySchedules.length > 2 && (
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        +{daySchedules.length - 2} boshqalar
-                      </Typography.Text>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
+      {/* Year View Calendar */}
       {viewMode === 'year' && (
-        <Card style={{ borderRadius: 24, marginBottom: 24, background: '#fef7ff' }} bodyStyle={{ padding: 24 }}>
-          <Typography.Title level={4}>Yillik ko‘rinish</Typography.Title>
-          <Row gutter={[16, 16]}>
-            {yearMonths.map((monthIndex) => {
-              const cells = getMonthCells(year, monthIndex);
-
-              return (
-                <Col key={monthIndex} xs={24} sm={12} lg={8} xl={6}>
-                  <Card style={{ borderRadius: 24, minHeight: 320, background: '#fff' }} bodyStyle={{ padding: 16 }}>
-                    <Typography.Title level={5} style={{ textAlign: 'center', marginBottom: 16 }}>
+        <Row gutter={[16, 16]}>
+          {Array.from({ length: 12 }, (_, monthIndex) => {
+            const cells = getMonthCells(year, monthIndex);
+            return (
+              <Col key={monthIndex} xs={24} sm={12} lg={8} xl={6}>
+                <Card
+                  style={{ borderRadius: 20, minHeight: 320, background: '#fff' }}
+                  bodyStyle={{ padding: 16 }}
+                  title={
+                    <Typography.Text strong style={{ fontSize: 16, color: '#722ed1' }}>
                       {MONTH_LABELS[monthIndex]}
-                    </Typography.Title>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 10, textAlign: 'center' }}>
-                      {DAY_LABELS.map((label) => (
-                        <Typography.Text key={label} type="secondary" style={{ fontSize: 12, fontWeight: 700 }}>
-                          {label}
-                        </Typography.Text>
-                      ))}
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
-                      {cells.map((date, idx) => {
-                        if (!date) {
-                          return <div key={idx} style={{ minHeight: 48 }} />;
-                        }
+                    </Typography.Text>
+                  }
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 10, textAlign: 'center' }}>
+                    {DAY_LABELS.map((label) => (
+                      <Typography.Text key={label} type="secondary" style={{ fontSize: 12, fontWeight: 700 }}>
+                        {label}
+                      </Typography.Text>
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+                    {cells.map((date, idx) => {
+                      if (!date) {
+                        return <div key={idx} style={{ minHeight: 44 }} />;
+                      }
 
-                        const dateKey = date.format('YYYY-MM-DD');
-                        const daySchedules = scheduleMap.get(dateKey) ?? [];
-                        const isToday = dateKey === todayKey;
+                      const dateKey = date.format('YYYY-MM-DD');
+                      const daySchedules = scheduleMap.get(dateKey) ?? [];
+                      const isToday = dateKey === todayKey;
 
-                        return (
-                          <div
-                            key={idx}
-                            style={{
-                              minHeight: 48,
-                              borderRadius: 12,
-                              padding: '6px 8px',
-                              background: isToday ? '#e6f7ff' : '#fff',
-                              border: daySchedules.length ? '1px solid rgba(89, 80, 255, 0.18)' : '1px solid transparent',
-                            }}
-                          >
-                            <Typography.Text style={{ fontSize: 12 }}>{date.date()}</Typography.Text>
-                            {daySchedules.length > 0 && (
-                              <div style={{ marginTop: 4 }}>
-                                <Badge count={daySchedules.length} style={{ backgroundColor: '#2f54eb' }} />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </Card>
-                </Col>
-              );
-            })}
-          </Row>
-        </Card>
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            minHeight: 44,
+                            borderRadius: 10,
+                            padding: '4px 4px',
+                            background: isToday ? '#f9f0ff' : '#fff',
+                            border: isToday
+                              ? '2px solid #722ed1'
+                              : daySchedules.length
+                              ? '1px solid #d3adf7'
+                              : '1px solid #f0f0f0',
+                            textAlign: 'center',
+                          }}
+                        >
+                          <Typography.Text style={{ fontSize: 12, fontWeight: isToday ? 700 : 400 }}>
+                            {date.date()}
+                          </Typography.Text>
+                          {daySchedules.length > 0 && (
+                            <div style={{ marginTop: 2 }}>
+                              <Badge
+                                count={daySchedules.length}
+                                style={{ backgroundColor: '#722ed1', fontSize: 10, height: 16, minWidth: 16, lineHeight: '16px' }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              </Col>
+            );
+          })}
+        </Row>
       )}
 
+      {/* List View */}
       {viewMode === 'list' && (
-        <Card style={{ marginTop: 24, borderRadius: 24 }}>
-          <Typography.Title level={5}>Ro'yxat</Typography.Title>
-          {filteredSchedules.length === 0 ? (
-            <Typography.Text>Hech qanday dars topilmadi</Typography.Text>
-          ) : (
-            filteredSchedules.map((schedule) => (
-              <Card key={schedule._id} style={{ marginBottom: 16, borderRadius: 16 }}>
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Typography.Text strong>{schedule.groupId?.name ?? '—'}</Typography.Text>
-                  <Typography.Text>{schedule.teacherId?.fullName ?? '—'}</Typography.Text>
+        <Card title="Dars jadvallari ro'yxati" style={{ borderRadius: 20 }}>
+          <Table
+            rowKey="_id"
+            dataSource={filteredSchedules}
+            loading={loading}
+            locale={{ emptyText: "Dars jadvali topilmadi" }}
+            columns={[
+              {
+                title: 'Guruh',
+                render: (_: unknown, record: ScheduleRecord) => (
+                  <Typography.Text strong>{(record.groupId as any)?.name || '—'}</Typography.Text>
+                ),
+              },
+              {
+                title: "O'qituvchi",
+                render: (_: unknown, record: ScheduleRecord) => (
+                  <Space>
+                    <UserOutlined style={{ color: '#722ed1' }} />
+                    <Typography.Text>{(record.teacherId as any)?.fullName || '—'}</Typography.Text>
+                  </Space>
+                ),
+              },
+              {
+                title: 'Dars kunlari',
+                render: (_: unknown, record: ScheduleRecord) => (
+                  <Space wrap>
+                    {record.weekDays?.map((d) => (
+                      <Tag key={d} color="purple">
+                        {d}
+                      </Tag>
+                    ))}
+                  </Space>
+                ),
+              },
+              {
+                title: 'Vaqti',
+                render: (_: unknown, record: ScheduleRecord) => (
                   <Typography.Text type="secondary">
-                    {Array.isArray(schedule.weekDays) ? schedule.weekDays.join(', ') : '-'} • {schedule.startTime || '-'} – {schedule.endTime || '-'}
+                    <ClockCircleOutlined /> {record.startTime || '-'} - {record.endTime || '-'}
                   </Typography.Text>
-                </Space>
-              </Card>
-            ))
-          )}
+                ),
+              },
+              {
+                title: 'Boshlanish sanasi',
+                render: (_: unknown, record: ScheduleRecord) =>
+                  record.startDate ? dayjs(record.startDate).format('DD.MM.YYYY') : '—',
+              },
+              {
+                title: 'Harakatlar',
+                render: (_: unknown, record: ScheduleRecord) => (
+                  <Button
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleDeleteSchedule(record._id)}
+                  >
+                    O'chirish
+                  </Button>
+                ),
+              },
+            ]}
+          />
         </Card>
       )}
+
+      {/* Create Schedule Modal */}
+      <Modal
+        open={modalOpen}
+        title="Yangi Dars Jadvali Qo'shish"
+        onCancel={() => {
+          setModalOpen(false);
+          form.resetFields();
+        }}
+        onOk={handleCreateSchedule}
+        okText="Saqlash"
+        confirmLoading={submitting}
+        width={600}
+      >
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="groupId" label="Guruh" rules={[{ required: true, message: 'Guruhni tanlang' }]}>
+            <Select
+              showSearch
+              placeholder="Guruhni tanlang"
+              optionFilterProp="label"
+              options={references.groups.map((g) => ({ value: g._id, label: g.name }))}
+            />
+          </Form.Item>
+
+          <Form.Item name="teacherId" label="O'qituvchi" rules={[{ required: true, message: "O'qituvchini tanlang" }]}>
+            <Select
+              showSearch
+              placeholder="O'qituvchini tanlang"
+              optionFilterProp="label"
+              options={references.teachers.map((t) => ({ value: t._id, label: t.fullName }))}
+            />
+          </Form.Item>
+
+          <Form.Item name="weekDays" label="Dars kunlari" rules={[{ required: true, message: 'Dars kunlarini tanlang' }]}>
+            <Select mode="multiple" placeholder="Kunlarni tanlang" options={weekDaysOptions} />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="startTime" label="Boshlanish vaqti (masalan: 10:00)" rules={[{ required: true, message: 'Vaqtni kiriting' }]}>
+                <Input placeholder="10:00" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="endTime" label="Tugash vaqti (masalan: 12:00)" rules={[{ required: true, message: 'Vaqtni kiriting' }]}>
+                <Input placeholder="12:00" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item name="startDate" label="Boshlanish sanasi">
+            <Input type="date" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

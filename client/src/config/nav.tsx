@@ -12,13 +12,10 @@ import {
   TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import type { MenuProps } from 'antd';
 import type { Role } from '../types';
 
-export interface NavItem {
-  key: string;
-  label: string;
-  icon: React.ReactNode;
-}
+export type NavItem = NonNullable<MenuProps['items']>[number];
 
 const adminNav: NavItem[] = [
   { key: '/', label: 'Dashboard', icon: <DashboardOutlined /> },
@@ -30,7 +27,6 @@ const adminNav: NavItem[] = [
   { key: '/attendance', label: "Davomat", icon: <CheckSquareOutlined /> },
   { key: '/payments', label: "To'lovlar", icon: <DollarOutlined /> },
   { key: '/finance', label: 'Moliya', icon: <SolutionOutlined /> },
-  { key: '/finance/payroll', label: 'O‘qituvchilar oyligi', icon: <DollarOutlined /> },
   { key: '/audit-logs', label: 'Audit log', icon: <AuditOutlined /> },
   { key: '/settings', label: 'Sozlamalar', icon: <SettingOutlined /> },
   { key: '/parent-relations', label: 'Ota-ona bog‘lanishi', icon: <TeamOutlined /> },

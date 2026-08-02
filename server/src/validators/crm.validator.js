@@ -125,6 +125,8 @@ export const financeSchema = z.object({
   month: z.number().int().min(0).max(11).optional(),
   year: z.number().int().min(2020).optional(),
   reference: z.string().trim().optional().or(z.literal('')),
+  recipient: z.string().trim().optional().or(z.literal('')),
+  itemsReceived: z.string().trim().optional().or(z.literal('')),
   createdBy: z.string().min(1).optional().or(z.literal('')),
 });
 

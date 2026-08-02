@@ -534,10 +534,14 @@ export async function deleteSchedule(req, res, next) {
 
 export async function listAttendances(req, res, next) {
   try {
-    const attendances = await Attendance.find(buildListQuery())
+    const groupId = req.query?.groupId;
+    const queryFilter = buildListQuery();
+    if (groupId) queryFilter.groupId = groupId;
+
+    const attendances = await Attendance.find(queryFilter)
       .populate('groupId', 'name')
       .populate('markedBy', 'fullName')
-      .populate('records.studentId', 'fullName')
+      .populate('records.studentId', 'fullName phone')
       .sort({ lessonDate: -1 });
 
     ok(res, attendances);
@@ -546,8 +550,70 @@ export async function listAttendances(req, res, next) {
   }
 }
 
+export async function getGroupAttendanceDetails(req, res, next) {
+  try {
+    const { groupId } = req.params;
+    const targetMonth = Number(req.query?.month ?? new Date().getMonth());
+    const targetYear = Number(req.query?.year ?? new Date().getFullYear());
+
+    const group = await Group.findById(groupId)
+      .populate('courseId', 'name price')
+      .populate('teacherId', 'fullName phone')
+      .populate('branchId', 'name')
+      .populate('studentIds', 'fullName phone email')
+      .lean();
+
+    if (!group) throw ApiError.notFound('Guruh topilmadi');
+
+    const schedule = await Schedule.findOne({ groupId }).lean();
+
+    const monthStart = new Date(targetYear, targetMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
+
+    const attendances = await Attendance.find({
+      groupId,
+      lessonDate: { $gte: monthStart, $lte: monthEnd },
+    })
+      .populate('markedBy', 'fullName')
+      .populate('records.studentId', 'fullName phone')
+      .sort({ lessonDate: 1 })
+      .lean();
+
+    ok(res, {
+      group,
+      schedule,
+      attendances,
+      month: targetMonth,
+      year: targetYear,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function createAttendance(req, res, next) {
   try {
+    const { groupId, lessonDate } = req.body;
+    if (groupId && lessonDate) {
+      const startOfDay = new Date(lessonDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(lessonDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const existing = await Attendance.findOne({
+        groupId,
+        lessonDate: { $gte: startOfDay, $lte: endOfDay },
+      });
+
+      if (existing) {
+        const updated = await Attendance.findByIdAndUpdate(existing._id, req.body, {
+          new: true,
+          runValidators: true,
+        });
+        return ok(res, updated);
+      }
+    }
+
     const attendance = await Attendance.create(req.body);
     ok(res, attendance, 201);
   } catch (err) {
@@ -710,12 +776,174 @@ export async function deleteFinance(req, res, next) {
   }
 }
 
+async function performPayrollCalculation(targetMonth, targetYear, defaultFee = 300000) {
+  const monthStart = new Date(targetYear, targetMonth, 1, 0, 0, 0, 0);
+  const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
+
+  const teachers = await User.find(buildListQuery({ role: { $in: [ROLES.TEACHER, 'teacher', 'TEACHER'] } })).select('_id fullName phone email').lean();
+  const groups = await Group.find(buildListQuery({ teacherId: { $exists: true, $ne: null } }))
+    .populate('teacherId', 'fullName')
+    .populate('courseId', 'name price')
+    .lean();
+
+  const groupIds = groups.map((g) => g._id);
+  const schedules = await Schedule.find({ groupId: { $in: groupIds } }).lean();
+  const scheduleMap = new Map();
+  for (const sched of schedules) {
+    scheduleMap.set(String(sched.groupId), sched);
+  }
+
+  const attendanceDocs = await Attendance.find({
+    groupId: { $in: groupIds },
+    lessonDate: { $gte: monthStart, $lte: monthEnd },
+  }).lean();
+
+  const attendanceMap = new Map();
+  for (const doc of attendanceDocs) {
+    const groupId = String(doc.groupId);
+    if (!attendanceMap.has(groupId)) attendanceMap.set(groupId, []);
+    attendanceMap.get(groupId).push(doc);
+  }
+
+  const bonusesAndPenalties = await FinanceSection.find({
+    category: { $in: ['bonus', 'penalty'] },
+    month: targetMonth,
+    year: targetYear,
+  }).lean();
+
+  const teacherMap = new Map();
+  for (const t of teachers) {
+    teacherMap.set(String(t._id), {
+      teacher: t,
+      baseSalary: 0,
+      bonuses: 0,
+      penalties: 0,
+      totalAttended: 0,
+      totalLessonsCount: 0,
+      breakdown: [],
+    });
+  }
+
+  for (const group of groups) {
+    const teacherId = group.teacherId?._id ? String(group.teacherId._id) : null;
+    if (!teacherId) continue;
+
+    if (!teacherMap.has(teacherId)) {
+      teacherMap.set(teacherId, {
+        teacher: group.teacherId,
+        baseSalary: 0,
+        bonuses: 0,
+        penalties: 0,
+        totalAttended: 0,
+        totalLessonsCount: 0,
+        breakdown: [],
+      });
+    }
+
+    const teacherData = teacherMap.get(teacherId);
+    const studentIds = Array.isArray(group.studentIds) ? group.studentIds.map((s) => String(s)) : [];
+    const lessonsInMonth = attendanceMap.get(String(group._id)) ?? [];
+
+    let totalLessons = lessonsInMonth.length;
+    if (totalLessons === 0) {
+      const sched = scheduleMap.get(String(group._id));
+      if (sched?.generatedLessons?.length) {
+        totalLessons = sched.generatedLessons.length;
+      } else if (sched?.weekDays?.length) {
+        totalLessons = sched.weekDays.length * 4;
+      } else {
+        totalLessons = 12; // default standard month lessons
+      }
+    }
+
+    const studentFee = Number(group.courseId?.price || defaultFee);
+    const perLessonFee = totalLessons > 0 ? studentFee / totalLessons : 0;
+
+    const students = await User.find({ _id: { $in: studentIds } }).select('_id fullName').lean();
+    const studentMap = new Map(students.map((s) => [String(s._id), s.fullName]));
+
+    for (const studentId of studentIds) {
+      const presentCount = lessonsInMonth.reduce((acc, lesson) => {
+        const record = (lesson.records ?? []).find((r) => String(r.studentId) === studentId);
+        return acc + (record && record.status === 'present' ? 1 : 0);
+      }, 0);
+
+      teacherData.totalAttended += presentCount;
+      teacherData.totalLessonsCount += totalLessons;
+
+      const studentContribution = Number((presentCount * perLessonFee).toFixed(2));
+      teacherData.baseSalary += studentContribution;
+
+      teacherData.breakdown.push({
+        groupId: group._id,
+        groupName: group.name,
+        studentId,
+        studentName: studentMap.get(studentId) || "O'quvchi",
+        studentFee,
+        totalLessons,
+        presentCount,
+        perLessonFee: Number(perLessonFee.toFixed(2)),
+        contribution: studentContribution,
+      });
+    }
+  }
+
+  for (const bp of bonusesAndPenalties) {
+    const teacherId = bp.teacherId ? String(bp.teacherId) : null;
+    if (!teacherId || !teacherMap.has(teacherId)) continue;
+    const tData = teacherMap.get(teacherId);
+    if (bp.category === 'bonus') {
+      tData.bonuses += Number(bp.amount ?? 0);
+    } else if (bp.category === 'penalty') {
+      tData.penalties += Number(bp.amount ?? 0);
+    }
+  }
+
+  await FinanceSection.deleteMany({ category: 'teacher_salary', month: targetMonth, year: targetYear });
+
+  const records = [];
+  for (const [teacherId, data] of teacherMap.entries()) {
+    const baseSalary = Number(data.baseSalary.toFixed(2));
+    const bonuses = Number(data.bonuses.toFixed(2));
+    const penalties = Number(data.penalties.toFixed(2));
+    const netPayable = Number(Math.max(0, baseSalary + bonuses - penalties).toFixed(2));
+
+    const record = await FinanceSection.create({
+      name: `O'qituvchining oyligi — ${data.teacher?.fullName ?? "O'qituvchi"}`,
+      kind: 'expense',
+      category: 'teacher_salary',
+      teacherId,
+      amount: netPayable,
+      month: targetMonth,
+      year: targetYear,
+      date: new Date(targetYear, targetMonth, 1),
+      description: `Baza: ${baseSalary.toLocaleString('ru-RU')} so'm | Rag'bat: +${bonuses.toLocaleString('ru-RU')} so'm | Jarima: -${penalties.toLocaleString('ru-RU')} so'm | (Davomat: ${data.totalAttended}/${data.totalLessonsCount} dars)`,
+    });
+    records.push({ ...record.toObject(), breakdown: data.breakdown, baseSalary, bonuses, penalties });
+  }
+
+  return records;
+}
+
 export async function listTeacherPayroll(req, res, next) {
   try {
-    const payroll = await FinanceSection.find(buildListQuery({ category: 'teacher_salary' }))
-      .populate('teacherId', 'fullName')
+    const month = req.query?.month != null && req.query.month !== '' ? Number(req.query.month) : new Date().getMonth();
+    const year = req.query?.year != null && req.query.year !== '' ? Number(req.query.year) : new Date().getFullYear();
+    const defaultFee = Number(req.query?.defaultStudentFee ?? 300000);
+
+    const queryFilter = { category: 'teacher_salary', month, year };
+    let payroll = await FinanceSection.find(buildListQuery(queryFilter))
+      .populate('teacherId', 'fullName phone email')
       .populate('groupId', 'name')
       .sort({ year: -1, month: -1, createdAt: -1 });
+
+    if (payroll.length === 0) {
+      await performPayrollCalculation(month, year, defaultFee);
+      payroll = await FinanceSection.find(buildListQuery(queryFilter))
+        .populate('teacherId', 'fullName phone email')
+        .populate('groupId', 'name')
+        .sort({ year: -1, month: -1, createdAt: -1 });
+    }
 
     ok(res, payroll);
   } catch (err) {
@@ -727,112 +955,129 @@ export async function calculateTeacherPayroll(req, res, next) {
   try {
     const targetMonth = Number(req.body?.month ?? new Date().getMonth());
     const targetYear = Number(req.body?.year ?? new Date().getFullYear());
+    const defaultFee = Number(req.body?.defaultStudentFee ?? 300000);
+
+    const records = await performPayrollCalculation(targetMonth, targetYear, defaultFee);
+
+    ok(res, {
+      message: "O'qituvchilar oyligi davomat bo'yicha hisoblandi",
+      generated: records.length,
+      records,
+    }, 201);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getTeacherPayrollBreakdown(req, res, next) {
+  try {
+    const { teacherId } = req.params;
+    const targetMonth = Number(req.query?.month ?? new Date().getMonth());
+    const targetYear = Number(req.query?.year ?? new Date().getFullYear());
+    const defaultFee = Number(req.query?.defaultStudentFee ?? 300000);
 
     const monthStart = new Date(targetYear, targetMonth, 1, 0, 0, 0, 0);
     const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
 
-    const groups = await Group.find(buildListQuery({ teacherId: { $exists: true, $ne: null } }))
-      .populate('teacherId', 'fullName')
+    const teacher = await User.findById(teacherId).select('fullName phone email').lean();
+    if (!teacher) throw ApiError.notFound("O'qituvchi topilmadi");
+
+    const groups = await Group.find(buildListQuery({ teacherId }))
       .populate('courseId', 'name price')
       .lean();
 
-    const attendanceMap = new Map();
+    const groupIds = groups.map((g) => g._id);
+    const schedules = await Schedule.find({ groupId: { $in: groupIds } }).lean();
+    const scheduleMap = new Map();
+    for (const sched of schedules) {
+      scheduleMap.set(String(sched.groupId), sched);
+    }
+
     const attendanceDocs = await Attendance.find({
+      groupId: { $in: groupIds },
       lessonDate: { $gte: monthStart, $lte: monthEnd },
     }).lean();
 
+    const attendanceMap = new Map();
     for (const doc of attendanceDocs) {
-      const groupId = String(doc.groupId);
-      if (!attendanceMap.has(groupId)) attendanceMap.set(groupId, []);
-      attendanceMap.get(groupId).push(doc);
+      const gId = String(doc.groupId);
+      if (!attendanceMap.has(gId)) attendanceMap.set(gId, []);
+      attendanceMap.get(gId).push(doc);
     }
 
-    const paymentDocs = await Payment.find({
-      paymentDate: { $gte: monthStart, $lte: monthEnd },
-      status: { $ne: 'cancelled' },
+    const bonusesAndPenalties = await FinanceSection.find({
+      teacherId,
+      category: { $in: ['bonus', 'penalty'] },
+      month: targetMonth,
+      year: targetYear,
     }).lean();
 
-    const generated = [];
-    const teacherTotals = new Map();
+    const studentBreakdown = [];
+    let baseSalary = 0;
 
     for (const group of groups) {
-      const teacherId = group.teacherId?._id ? String(group.teacherId._id) : null;
-      if (!teacherId) continue;
-
-      const studentIds = Array.isArray(group.studentIds) ? group.studentIds.map((student) => String(student)) : [];
+      const studentIds = Array.isArray(group.studentIds) ? group.studentIds.map((s) => String(s)) : [];
       const lessonsInMonth = attendanceMap.get(String(group._id)) ?? [];
-      const studentLessonMap = new Map();
+      let totalLessons = lessonsInMonth.length;
 
-      for (const studentId of studentIds) {
-        const presentCount = lessonsInMonth.reduce((total, lesson) => {
-          const studentRecord = (lesson.records ?? []).find((record) => String(record.studentId) === studentId);
-          return total + (studentRecord && studentRecord.status === 'present' ? 1 : 0);
-        }, 0);
-        studentLessonMap.set(studentId, presentCount);
-      }
-
-      let totalMonthPay = 0;
-
-      for (const studentId of studentIds) {
-        const studentTotal = paymentDocs.reduce((sum, payment) => {
-          const sameStudent = String(payment.studentId) === studentId;
-          const sameGroup = String(payment.groupId) === String(group._id);
-          return sameStudent && sameGroup ? sum + Number(payment.amount ?? 0) : sum;
-        }, 0);
-
-        if (studentTotal <= 0) continue;
-
-        const presentLessons = studentLessonMap.get(studentId) ?? 0;
-        const baseValue = studentTotal / Math.max(lessonsInMonth.length || 1, 1);
-        const teacherShare = Number((baseValue * presentLessons).toFixed(2));
-
-        if (teacherShare > 0) {
-          totalMonthPay += teacherShare;
-          generated.push({
-            teacherId,
-            studentId,
-            groupId: group._id,
-            amount: teacherShare,
-            name: "O'qituvchi oyligi — " + (group.name ?? 'Guruh'),
-            kind: 'expense',
-            category: 'teacher_salary',
-            month: targetMonth,
-            year: targetYear,
-            date: new Date(targetYear, targetMonth, 1),
-            description: `${group.teacherId?.fullName ?? "O'qituvchi"} uchun ${studentId} o'quvchining oylik hissasi`,
-          });
+      if (totalLessons === 0) {
+        const sched = scheduleMap.get(String(group._id));
+        if (sched?.generatedLessons?.length) {
+          totalLessons = sched.generatedLessons.length;
+        } else if (sched?.weekDays?.length) {
+          totalLessons = sched.weekDays.length * 4;
+        } else {
+          totalLessons = 12;
         }
       }
 
-      if (totalMonthPay > 0) {
-        teacherTotals.set(teacherId, (teacherTotals.get(teacherId) ?? 0) + totalMonthPay);
+      const studentFee = Number(group.courseId?.price || defaultFee);
+      const perLessonFee = totalLessons > 0 ? studentFee / totalLessons : 0;
+
+      const students = await User.find({ _id: { $in: studentIds } }).select('_id fullName').lean();
+      const studentMap = new Map(students.map((s) => [String(s._id), s.fullName]));
+
+      for (const studentId of studentIds) {
+        const presentCount = lessonsInMonth.reduce((acc, lesson) => {
+          const record = (lesson.records ?? []).find((r) => String(r.studentId) === studentId);
+          return acc + (record && record.status === 'present' ? 1 : 0);
+        }, 0);
+
+        const contribution = Number((presentCount * perLessonFee).toFixed(2));
+        baseSalary += contribution;
+
+        studentBreakdown.push({
+          groupId: group._id,
+          groupName: group.name,
+          studentId,
+          studentName: studentMap.get(studentId) || "O'quvchi",
+          studentFee,
+          totalLessons,
+          presentCount,
+          perLessonFee: Number(perLessonFee.toFixed(2)),
+          contribution,
+        });
       }
     }
 
-    await FinanceSection.deleteMany({ category: 'teacher_salary', month: targetMonth, year: targetYear });
-
-    const records = [];
-    for (const [teacherId, amount] of teacherTotals.entries()) {
-      const record = await FinanceSection.create({
-        name: 'Oqituvchining oyligi',
-        kind: 'expense',
-        category: 'teacher_salary',
-        teacherId,
-        amount: Number(amount.toFixed(2)),
-        month: targetMonth,
-        year: targetYear,
-        date: new Date(targetYear, targetMonth, 1),
-        description: `Avtomatik oylik hisobi (${new Date(targetYear, targetMonth).toLocaleString('uz-UZ', { month: 'long' })} ${targetYear})`,
-      });
-      records.push(record);
+    let totalBonus = 0;
+    let totalPenalty = 0;
+    for (const item of bonusesAndPenalties) {
+      if (item.category === 'bonus') totalBonus += Number(item.amount ?? 0);
+      if (item.category === 'penalty') totalPenalty += Number(item.amount ?? 0);
     }
 
     ok(res, {
-      message: 'Oylik hisoblandi',
-      generated: records.length,
-      records,
-      breakdown: generated,
-    }, 201);
+      teacher,
+      month: targetMonth,
+      year: targetYear,
+      baseSalary: Number(baseSalary.toFixed(2)),
+      totalBonus,
+      totalPenalty,
+      netPayable: Number(Math.max(0, baseSalary + totalBonus - totalPenalty).toFixed(2)),
+      studentBreakdown,
+      bonusesAndPenalties,
+    });
   } catch (err) {
     next(err);
   }

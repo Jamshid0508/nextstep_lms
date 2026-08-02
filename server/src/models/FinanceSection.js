@@ -19,6 +19,8 @@ const financeSectionSchema = new mongoose.Schema(
     month: { type: Number, min: 0, max: 11 },
     year: { type: Number },
     reference: { type: String, trim: true },
+    recipient: { type: String, trim: true },
+    itemsReceived: { type: String, trim: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true },

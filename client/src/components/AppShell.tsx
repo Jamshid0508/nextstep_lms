@@ -40,7 +40,7 @@ export function AppShell() {
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
-          items={navItems.map((item) => ({ key: item.key, icon: item.icon, label: item.label }))}
+          items={navItems}
           onClick={({ key }) => navigate(key)}
         />
       </Sider>
