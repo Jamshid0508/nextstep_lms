@@ -1,6 +1,9 @@
-import { Form, Input, Select } from 'antd';
+import { Button, Form, Input, Select, Upload, message, Space, Tabs } from 'antd';
 import type { FormInstance } from 'antd';
+import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { CrudPage } from '../components/crm/CrudPage';
+import { apiClient } from '../api/client';
+import { useState } from 'react';
 
 interface UserRecord {
   _id: string;
@@ -9,15 +12,8 @@ interface UserRecord {
   email?: string;
   role: 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PARENT';
   status: 'active' | 'blocked' | 'pending';
+  studentType?: 'restricted' | 'paid';
 }
-
-const columns = [
-  { title: 'F.I.Sh', dataIndex: 'fullName' as const },
-  { title: 'Telefon', dataIndex: 'phone' as const },
-  { title: 'Email', dataIndex: 'email' as const },
-  { title: 'Rol', dataIndex: 'role' as const },
-  { title: 'Holat', dataIndex: 'status' as const, render: (value: unknown) => <span>{String(value)}</span> },
-];
 
 const renderForm = (_form: FormInstance) => (
   <>
@@ -31,23 +27,193 @@ const renderForm = (_form: FormInstance) => (
       <Input />
     </Form.Item>
     <Form.Item name="role" label="Rol" rules={[{ required: true, message: 'Rol tanlang' }]}> 
-      <Select options={[
-        { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN' },
-        { value: 'ADMIN', label: 'ADMIN' },
-        { value: 'TEACHER', label: 'TEACHER' },
-        { value: 'STUDENT', label: 'STUDENT' },
-        { value: 'PARENT', label: 'PARENT' },
-      ]} />
+      <Select
+        options={[
+          { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN' },
+          { value: 'ADMIN', label: 'ADMIN' },
+          { value: 'TEACHER', label: 'TEACHER' },
+          { value: 'STUDENT', label: 'STUDENT' },
+          { value: 'PARENT', label: 'PARENT' },
+        ]}
+      />
+    </Form.Item>
+    <Form.Item shouldUpdate={(prevValues, currentValues) => prevValues.role !== currentValues.role} noStyle>
+      {({ getFieldValue }) =>
+        getFieldValue('role') === 'STUDENT' ? (
+          <Form.Item name="studentType" label="Talaba turi" initialValue="restricted">
+            <Select
+              options={[
+                { value: 'restricted', label: 'Restr' },
+                { value: 'paid', label: 'Pulli' },
+              ]}
+            />
+          </Form.Item>
+        ) : null
+      }
     </Form.Item>
     <Form.Item name="password" label="Parol" rules={[{ required: true, message: 'Parol kiriting' }]}> 
       <Input.Password />
     </Form.Item>
     <Form.Item name="status" label="Holat" initialValue="active">
-      <Select options={[{ value: 'active', label: 'Active' }, { value: 'blocked', label: 'Blocked' }, { value: 'pending', label: 'Pending' }]} />
+      <Select
+        options={[
+          { value: 'active', label: 'Active' },
+          { value: 'blocked', label: 'Blocked' },
+          { value: 'pending', label: 'Pending' },
+        ]}
+      />
     </Form.Item>
   </>
 );
 
 export function UsersPage() {
-  return <CrudPage<UserRecord> title="Foydalanuvchilar" endpoint="/superadmin/users" columns={columns} formItems={renderForm} />;
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const handleImport = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const { data } = await apiClient.post<{ success: true; data: { importedCount: number; errors: string[] } }>(
+        '/superadmin/users/import',
+        formData,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        },
+      );
+
+      if (data.data.errors.length > 0) {
+        message.warning(`Fayl import qilindi, ammo ${data.data.errors.length} qatorda xatolik bor`);
+      } else {
+        message.success(`${data.data.importedCount} ta foydalanuvchi import qilindi`);
+      }
+
+      setReloadKey((prev) => prev + 1);
+    } catch {
+      message.error('Excel faylini import qilishda xatolik yuz berdi');
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const response = await apiClient.get('/superadmin/users/export?role=STUDENT', {
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'students.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      message.error('Export jarayonida xatolik yuz berdi');
+    }
+  };
+
+  const handleSetPaid = async (id: string) => {
+    try {
+      await apiClient.patch(`/superadmin/users/${id}`, { studentType: 'paid' });
+      message.success('Talaba pul to‘lagan qilib belgilandi');
+      setReloadKey((prev) => prev + 1);
+    } catch {
+      message.error('Talabani pulli qilib belgilashda xatolik yuz berdi');
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await apiClient.get('/superadmin/users/import/template', {
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'user-import-template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      message.error('Import shablonini yuklab olishda xatolik yuz berdi');
+    }
+  };
+
+  const [activeRole, setActiveRole] = useState<'ALL' | 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PARENT'>('ALL');
+
+  const roleOptions = [
+    { key: 'ALL', label: 'Barchasi' },
+    { key: 'SUPER_ADMIN', label: 'SUPER_ADMIN' },
+    { key: 'ADMIN', label: 'ADMIN' },
+    { key: 'TEACHER', label: 'O‘qituvchilar' },
+    { key: 'STUDENT', label: 'O‘quvchilar' },
+    { key: 'PARENT', label: 'Ota-onalar' },
+  ];
+
+  const filteredEndpoint = activeRole === 'ALL' ? `/superadmin/users?refresh=${reloadKey}` : `/superadmin/users?role=${activeRole}&refresh=${reloadKey}`;
+
+  const columns = [
+    { title: 'F.I.Sh', dataIndex: 'fullName' as const },
+    { title: 'Telefon', dataIndex: 'phone' as const },
+    { title: 'Email', dataIndex: 'email' as const },
+    { title: 'Rol', dataIndex: 'role' as const },
+    {
+      title: 'Talaba turi',
+      dataIndex: 'studentType' as const,
+      render: (value: unknown, record: UserRecord) => {
+        if (record.role !== 'STUDENT') {
+          return null;
+        }
+
+        return (
+          <Space size="small">
+            <span>{String(value) === 'paid' ? 'Pulli' : 'Restr'}</span>
+            {String(value) !== 'paid' ? (
+              <Button type="link" size="small" onClick={() => handleSetPaid(record._id)}>
+                Pulliga o‘tkazish
+              </Button>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    { title: 'Holat', dataIndex: 'status' as const, render: (value: unknown) => <span>{String(value)}</span> },
+  ];
+
+  return (
+    <div>
+      <Tabs
+        activeKey={activeRole}
+        onChange={(key) => setActiveRole(key as typeof activeRole)}
+        items={roleOptions.map((role) => ({
+          key: role.key,
+          label: role.label,
+          children: (
+            <CrudPage<UserRecord>
+              title="Foydalanuvchilar"
+              endpoint={filteredEndpoint}
+              columns={columns}
+              formItems={renderForm}
+              extra={
+                <Space>
+                  <Button icon={<DownloadOutlined />} onClick={handleDownloadTemplate}>
+                    Import shablonini yuklab olish
+                  </Button>
+                  <Upload beforeUpload={(file) => { void handleImport(file); return false; }} accept=".xlsx,.xls" maxCount={1} showUploadList={false}>
+                    <Button icon={<UploadOutlined />}>Excel import</Button>
+                  </Upload>
+                  <Button icon={<DownloadOutlined />} onClick={handleExport}>
+                    Barcha o‘quvchilarni export
+                  </Button>
+                </Space>
+              }
+            />
+          ),
+        }))}
+      />
+    </div>
+  );
 }

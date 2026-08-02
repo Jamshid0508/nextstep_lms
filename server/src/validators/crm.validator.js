@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ALL_ROLES } from '../constants/roles.js';
 import {
   ATTENDANCE_STATUS,
   BRANCH_STATUS,
@@ -12,6 +13,7 @@ import {
   QUIZ_STATUS,
   SUBMISSION_STATUS,
   QUIZ_ATTEMPT_STATUS,
+  USER_STATUS,
 } from '../constants/status.js';
 
 export const branchSchema = z.object({
@@ -78,6 +80,19 @@ export const attendanceSchema = z.object({
   markedBy: z.string().min(1).optional().or(z.literal('')),
 });
 
+export const userSchema = z.object({
+  fullName: z.string().min(2, 'F.I.Sh kamida 2 ta belgidan iborat bo’lishi kerak'),
+  phone: z.string().min(5, 'Telefon kiriting'),
+  email: z.string().email('Email noto‘g‘ri').optional().or(z.literal('')),
+  password: z.string().min(6, 'Parol kamida 6 belgidan iborat bo’lishi kerak'),
+  role: z.enum(ALL_ROLES),
+  studentType: z.enum(['restricted', 'paid']).optional(),
+  status: z.enum(Object.values(USER_STATUS)).optional(),
+  branchId: z.string().optional().or(z.literal('')),
+});
+
+export const userUpdateSchema = userSchema.partial();
+
 export const attendanceUpdateSchema = attendanceSchema.partial();
 
 export const paymentSchema = z.object({
@@ -99,9 +114,17 @@ export const paymentUpdateSchema = paymentSchema.partial();
 export const financeSchema = z.object({
   name: z.string().min(2, 'Sarlavha kamida 2 ta belgidan iborat bo’lishi kerak'),
   kind: z.enum(['expense', 'income']),
+  category: z.enum(['manual', 'income', 'expense', 'teacher_salary', 'bonus', 'penalty', 'other']).optional(),
   amount: z.number().min(0),
   date: z.coerce.date(),
   description: z.string().trim().optional().or(z.literal('')),
+  balance: z.number().min(0).optional(),
+  teacherId: z.string().min(1).optional().or(z.literal('')),
+  studentId: z.string().min(1).optional().or(z.literal('')),
+  groupId: z.string().min(1).optional().or(z.literal('')),
+  month: z.number().int().min(0).max(11).optional(),
+  year: z.number().int().min(2020).optional(),
+  reference: z.string().trim().optional().or(z.literal('')),
   createdBy: z.string().min(1).optional().or(z.literal('')),
 });
 

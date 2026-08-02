@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import XLSX from 'xlsx';
 import { Attendance } from '../../models/Attendance.js';
 import { AuditLog } from '../../models/AuditLog.js';
 import { Branch } from '../../models/Branch.js';
@@ -17,6 +18,7 @@ import { User } from '../../models/User.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { ok } from '../../utils/apiResponse.js';
 import { ROLES } from '../../constants/roles.js';
+import { USER_STATUS } from '../../constants/status.js';
 import { hashPassword } from '../../utils/password.util.js';
 
 function buildListQuery(query = {}) {
@@ -153,14 +155,35 @@ export async function deleteGroup(req, res, next) {
 
 export async function listUsers(req, res, next) {
   try {
-    const users = await User.find(buildListQuery())
-      .select('fullName phone email role status branchId createdAt')
+    const role = req.query.role ? String(req.query.role).toUpperCase() : undefined;
+    const query = buildListQuery();
+
+    if (role && Object.values(ROLES).includes(role)) {
+      query.role = role;
+    }
+
+    const users = await User.find(query)
+      .select('fullName phone email role status branchId studentType createdAt')
       .populate('branchId', 'name')
       .sort({ createdAt: -1 });
     ok(res, users);
   } catch (err) {
     next(err);
   }
+}
+
+function normalizeStudentType(value) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  if (['paid', 'pulli', 'p', 'ha', 'yes'].includes(normalized)) {
+    return 'paid';
+  }
+
+  if (['restricted', 'restrict', 'restr', 'r', 'no', 'yoʻq', 'yoq'].includes(normalized)) {
+    return 'restricted';
+  }
+
+  return 'restricted';
 }
 
 export async function createUser(req, res, next) {
@@ -174,9 +197,170 @@ export async function createUser(req, res, next) {
     const user = await User.create({
       ...rest,
       passwordHash: await hashPassword(password),
+      studentType: rest.role === ROLES.STUDENT ? normalizeStudentType(rest.studentType) : rest.studentType,
     });
 
     ok(res, user, 201);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function importUsers(req, res, next) {
+  try {
+    if (!req.file) {
+      throw ApiError.badRequest('Excel fayl yuklanmadi');
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+
+    if (!sheetName) {
+      throw ApiError.badRequest('Excel varaq topilmadi');
+    }
+
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+    const branches = await Branch.find(buildListQuery()).select('_id name');
+    const branchMap = branches.reduce((acc, branch) => {
+      if (branch.name) {
+        acc[branch.name.trim().toLowerCase()] = branch._id;
+      }
+      return acc;
+    }, {});
+
+    const defaultPasswordHash = await hashPassword('ChangeMe123!');
+    const importedUsers = [];
+    const errors = [];
+
+    for (const [index, row] of Object.entries(rows)) {
+      const rowIndex = Number(index) + 2;
+      const fullName = String(row.fullName ?? row['F.I.Sh'] ?? row.FullName ?? '').trim();
+      const phone = String(row.phone ?? row.Phone ?? '').trim();
+      const emailValue = String(row.email ?? row.Email ?? '').trim();
+      const email = emailValue ? emailValue.toLowerCase() : undefined;
+      const roleValue = String(row.role ?? row.Role ?? '').trim().toUpperCase();
+      const statusValue = String(row.status ?? row.Status ?? 'active').trim().toLowerCase();
+      const studentTypeValue = String(row.studentType ?? row.StudentType ?? row.student_type ?? row.StudentType ?? 'restricted').trim().toLowerCase();
+      const branchValue = String(row.branch ?? row.Branch ?? '').trim();
+
+      if (!fullName || !phone || !roleValue) {
+        errors.push(`Row ${rowIndex}: fullName, phone va role maydonlari majburiy`);
+        continue;
+      }
+
+      if (!Object.values(ROLES).includes(roleValue)) {
+        errors.push(`Row ${rowIndex}: rol noto'g'ri (${roleValue})`);
+        continue;
+      }
+
+      if (statusValue && !Object.values(USER_STATUS).includes(statusValue)) {
+        errors.push(`Row ${rowIndex}: holat noto'g'ri (${statusValue})`);
+        continue;
+      }
+
+      const studentType = normalizeStudentType(studentTypeValue);
+
+      const branchId = branchValue
+        ? mongoose.isValidObjectId(branchValue)
+          ? branchValue
+          : branchMap[branchValue.toLowerCase()]
+        : undefined;
+
+      const existingPhone = await User.findOne({ phone });
+      if (existingPhone) {
+        errors.push(`Row ${rowIndex}: telefon mavjud (${phone})`);
+        continue;
+      }
+
+      if (email) {
+        const existingEmail = await User.findOne({ email });
+        if (existingEmail) {
+          errors.push(`Row ${rowIndex}: email mavjud (${email})`);
+          continue;
+        }
+      }
+
+      const user = await User.create({
+        fullName,
+        phone,
+        email,
+        role: roleValue,
+        studentType: roleValue === ROLES.STUDENT ? studentType : 'restricted',
+        status: statusValue || USER_STATUS.ACTIVE,
+        branchId,
+        passwordHash: defaultPasswordHash,
+      });
+
+      importedUsers.push(user);
+    }
+
+    ok(res, { importedCount: importedUsers.length, errors });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function exportUsers(req, res, next) {
+  try {
+    const role = req.query.role ? String(req.query.role).toUpperCase() : undefined;
+    const query = buildListQuery();
+
+    if (role) {
+      query.role = role;
+    }
+
+    const users = await User.find(query)
+      .select('fullName phone email role status branchId')
+      .populate('branchId', 'name')
+      .sort({ fullName: 1 });
+
+    const rows = users.map((user) => ({
+      fullName: user.fullName,
+      phone: user.phone,
+      email: user.email ?? '',
+      role: user.role,
+      status: user.status,
+      studentType: user.studentType ?? 'restricted',
+      branch: user.branchId?.name ?? '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${role ? role.toLowerCase() : 'users'}-export.xlsx"`);
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function downloadUserImportTemplate(req, res, next) {
+  try {
+    const rows = [
+      {
+        fullName: 'Ali Valiyev',
+        phone: '+998901234567',
+        email: 'ali@example.com',
+        role: 'STUDENT',
+        status: 'active',
+        studentType: 'restricted',
+        branch: 'Tashkent',
+      },
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(rows, {
+      header: ['fullName', 'phone', 'email', 'role', 'status', 'studentType', 'branch'],
+    });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="user-import-template.xlsx"');
+    res.send(buffer);
   } catch (err) {
     next(err);
   }
@@ -189,6 +373,10 @@ export async function updateUser(req, res, next) {
 
     if (password) {
       updatePayload.passwordHash = await hashPassword(password);
+    }
+
+    if (req.body.role === ROLES.STUDENT && !req.body.studentType) {
+      updatePayload.studentType = 'restricted';
     }
 
     const user = await User.findByIdAndUpdate(req.params.id, updatePayload, {
@@ -216,11 +404,11 @@ export async function getReferenceData(req, res, next) {
   try {
     const [branches, courses, teachers, students, parents, groups] = await Promise.all([
       Branch.find(buildListQuery()).select('_id name').sort({ name: 1 }),
-      Course.find(buildListQuery()).select('_id name').sort({ name: 1 }),
+      Course.find(buildListQuery()).select('_id name price').sort({ name: 1 }),
       User.find(buildListQuery()).where('role').in([ROLES.TEACHER, ROLES.ADMIN]).select('_id fullName').sort({ fullName: 1 }),
-      User.find(buildListQuery()).where('role').equals(ROLES.STUDENT).select('_id fullName').sort({ fullName: 1 }),
+      User.find(buildListQuery()).where('role').equals(ROLES.STUDENT).select('_id fullName studentType').sort({ fullName: 1 }),
       User.find(buildListQuery()).where('role').equals(ROLES.PARENT).select('_id fullName').sort({ fullName: 1 }),
-      Group.find(buildListQuery()).select('_id name').sort({ name: 1 }),
+      Group.find(buildListQuery()).populate('courseId', 'name price').select('_id name courseId').sort({ name: 1 }),
     ]);
 
     ok(res, { branches, courses, teachers, students, parents, groups });
@@ -438,10 +626,45 @@ export async function deletePayment(req, res, next) {
   }
 }
 
+export async function getFinanceSummary(req, res, next) {
+  try {
+    const summary = await FinanceSection.aggregate([
+      { $match: buildListQuery() },
+      {
+        $group: {
+          _id: null,
+          income: {
+            $sum: {
+              $cond: [{ $eq: ['$kind', 'income'] }, '$amount', 0],
+            },
+          },
+          expense: {
+            $sum: {
+              $cond: [{ $eq: ['$kind', 'expense'] }, '$amount', 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    const current = summary[0] ?? { income: 0, expense: 0 };
+    ok(res, {
+      income: Number(current.income ?? 0),
+      expense: Number(current.expense ?? 0),
+      balance: Number((current.income ?? 0) - (current.expense ?? 0)),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listFinance(req, res, next) {
   try {
     const finance = await FinanceSection.find(buildListQuery())
       .populate('createdBy', 'fullName')
+      .populate('teacherId', 'fullName')
+      .populate('studentId', 'fullName')
+      .populate('groupId', 'name')
       .sort({ date: -1, createdAt: -1 });
 
     ok(res, finance);
@@ -452,7 +675,11 @@ export async function listFinance(req, res, next) {
 
 export async function createFinance(req, res, next) {
   try {
-    const finance = await FinanceSection.create(req.body);
+    const finance = await FinanceSection.create({
+      ...req.body,
+      category: req.body.category ?? (req.body.kind === 'income' ? 'income' : 'expense'),
+      date: req.body.date ?? new Date(),
+    });
     ok(res, finance, 201);
   } catch (err) {
     next(err);
@@ -478,6 +705,134 @@ export async function deleteFinance(req, res, next) {
     const finance = await FinanceSection.findByIdAndDelete(req.params.id);
     if (!finance) throw ApiError.notFound('Moliya yozuvi topilmadi');
     ok(res, { id: req.params.id, deleted: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listTeacherPayroll(req, res, next) {
+  try {
+    const payroll = await FinanceSection.find(buildListQuery({ category: 'teacher_salary' }))
+      .populate('teacherId', 'fullName')
+      .populate('groupId', 'name')
+      .sort({ year: -1, month: -1, createdAt: -1 });
+
+    ok(res, payroll);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function calculateTeacherPayroll(req, res, next) {
+  try {
+    const targetMonth = Number(req.body?.month ?? new Date().getMonth());
+    const targetYear = Number(req.body?.year ?? new Date().getFullYear());
+
+    const monthStart = new Date(targetYear, targetMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
+
+    const groups = await Group.find(buildListQuery({ teacherId: { $exists: true, $ne: null } }))
+      .populate('teacherId', 'fullName')
+      .populate('courseId', 'name price')
+      .lean();
+
+    const attendanceMap = new Map();
+    const attendanceDocs = await Attendance.find({
+      lessonDate: { $gte: monthStart, $lte: monthEnd },
+    }).lean();
+
+    for (const doc of attendanceDocs) {
+      const groupId = String(doc.groupId);
+      if (!attendanceMap.has(groupId)) attendanceMap.set(groupId, []);
+      attendanceMap.get(groupId).push(doc);
+    }
+
+    const paymentDocs = await Payment.find({
+      paymentDate: { $gte: monthStart, $lte: monthEnd },
+      status: { $ne: 'cancelled' },
+    }).lean();
+
+    const generated = [];
+    const teacherTotals = new Map();
+
+    for (const group of groups) {
+      const teacherId = group.teacherId?._id ? String(group.teacherId._id) : null;
+      if (!teacherId) continue;
+
+      const studentIds = Array.isArray(group.studentIds) ? group.studentIds.map((student) => String(student)) : [];
+      const lessonsInMonth = attendanceMap.get(String(group._id)) ?? [];
+      const studentLessonMap = new Map();
+
+      for (const studentId of studentIds) {
+        const presentCount = lessonsInMonth.reduce((total, lesson) => {
+          const studentRecord = (lesson.records ?? []).find((record) => String(record.studentId) === studentId);
+          return total + (studentRecord && studentRecord.status === 'present' ? 1 : 0);
+        }, 0);
+        studentLessonMap.set(studentId, presentCount);
+      }
+
+      let totalMonthPay = 0;
+
+      for (const studentId of studentIds) {
+        const studentTotal = paymentDocs.reduce((sum, payment) => {
+          const sameStudent = String(payment.studentId) === studentId;
+          const sameGroup = String(payment.groupId) === String(group._id);
+          return sameStudent && sameGroup ? sum + Number(payment.amount ?? 0) : sum;
+        }, 0);
+
+        if (studentTotal <= 0) continue;
+
+        const presentLessons = studentLessonMap.get(studentId) ?? 0;
+        const baseValue = studentTotal / Math.max(lessonsInMonth.length || 1, 1);
+        const teacherShare = Number((baseValue * presentLessons).toFixed(2));
+
+        if (teacherShare > 0) {
+          totalMonthPay += teacherShare;
+          generated.push({
+            teacherId,
+            studentId,
+            groupId: group._id,
+            amount: teacherShare,
+            name: "O'qituvchi oyligi — " + (group.name ?? 'Guruh'),
+            kind: 'expense',
+            category: 'teacher_salary',
+            month: targetMonth,
+            year: targetYear,
+            date: new Date(targetYear, targetMonth, 1),
+            description: `${group.teacherId?.fullName ?? "O'qituvchi"} uchun ${studentId} o'quvchining oylik hissasi`,
+          });
+        }
+      }
+
+      if (totalMonthPay > 0) {
+        teacherTotals.set(teacherId, (teacherTotals.get(teacherId) ?? 0) + totalMonthPay);
+      }
+    }
+
+    await FinanceSection.deleteMany({ category: 'teacher_salary', month: targetMonth, year: targetYear });
+
+    const records = [];
+    for (const [teacherId, amount] of teacherTotals.entries()) {
+      const record = await FinanceSection.create({
+        name: 'Oqituvchining oyligi',
+        kind: 'expense',
+        category: 'teacher_salary',
+        teacherId,
+        amount: Number(amount.toFixed(2)),
+        month: targetMonth,
+        year: targetYear,
+        date: new Date(targetYear, targetMonth, 1),
+        description: `Avtomatik oylik hisobi (${new Date(targetYear, targetMonth).toLocaleString('uz-UZ', { month: 'long' })} ${targetYear})`,
+      });
+      records.push(record);
+    }
+
+    ok(res, {
+      message: 'Oylik hisoblandi',
+      generated: records.length,
+      records,
+      breakdown: generated,
+    }, 201);
   } catch (err) {
     next(err);
   }

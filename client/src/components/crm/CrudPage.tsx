@@ -16,6 +16,7 @@ interface CrudPageProps<T extends Record<string, any>> {
   columns: CrudPageColumn<T>[];
   formItems: (form: FormInstance) => React.ReactNode;
   onSuccess?: () => void;
+  extra?: React.ReactNode;
 }
 
 export function CrudPage<T extends Record<string, any>>({
@@ -24,6 +25,7 @@ export function CrudPage<T extends Record<string, any>>({
   columns,
   formItems,
   onSuccess,
+  extra,
 }: CrudPageProps<T>) {
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,14 +49,21 @@ export function CrudPage<T extends Record<string, any>>({
     void fetchItems();
   }, [endpoint]);
 
+  const getItemEndpoint = (id: string) => {
+    const base = endpoint.split('?')[0];
+    return `${base}/${id}`;
+  };
+
+  const getBaseEndpoint = () => endpoint.split('?')[0];
+
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
       if (editingId) {
-        await apiClient.patch(`${endpoint}/${editingId}`, values);
+        await apiClient.patch(getItemEndpoint(editingId), values);
         message.success('Ma’lumot yangilandi');
       } else {
-        await apiClient.post(endpoint, values);
+        await apiClient.post(getBaseEndpoint(), values);
         message.success('Ma’lumot yaratildi');
       }
       form.resetFields();
@@ -69,7 +78,7 @@ export function CrudPage<T extends Record<string, any>>({
 
   const handleDelete = async (id: string) => {
     try {
-      await apiClient.delete(`${endpoint}/${id}`);
+      await apiClient.delete(getItemEndpoint(id));
       message.success('Ma’lumot o’chirildi');
       await fetchItems();
     } catch {
@@ -110,7 +119,7 @@ export function CrudPage<T extends Record<string, any>>({
   }, [columns, form]);
 
   return (
-    <Card title={title} extra={<Button onClick={() => setOpen(true)}>Yangi qo’shish</Button>}>
+    <Card title={title} extra={<Space>{extra}{extra ? null : null}<Button onClick={() => setOpen(true)}>Yangi qo’shish</Button></Space>}>
       <Table rowKey="_id" columns={tableColumns} dataSource={items} loading={loading} />
 
       <Modal

@@ -5,4 +5,5 @@ export async function connectDb() {
   mongoose.set('strictQuery', true);
   await mongoose.connect(env.mongoUri);
   console.log(`[db] MongoDB ulandi: ${mongoose.connection.name}`);
+  return true;
 }

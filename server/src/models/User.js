@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, unique: true, sparse: true, trim: true, lowercase: true },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ALL_ROLES, required: true },
+    studentType: { type: String, enum: ['restricted', 'paid'], default: 'restricted' },
     status: {
       type: String,
       enum: Object.values(USER_STATUS),

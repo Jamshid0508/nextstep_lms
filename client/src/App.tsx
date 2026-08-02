@@ -15,6 +15,7 @@ import { SchedulesPage } from './pages/SchedulesPage';
 import { AttendancePage } from './pages/AttendancePage';
 import { PaymentsPage } from './pages/PaymentsPage';
 import { FinancePage } from './pages/FinancePage';
+import { TeacherPayrollPage } from './pages/TeacherPayrollPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { HomeworksPage as AdminHomeworksPage } from './pages/HomeworksPage';
@@ -55,6 +56,7 @@ export function App() {
                 <Route path="attendance" element={<AttendancePage />} />
                 <Route path="payments" element={<PaymentsPage />} />
                 <Route path="finance" element={<FinancePage />} />
+                <Route path="finance/payroll" element={<TeacherPayrollPage />} />
                 <Route path="audit-logs" element={<AuditLogsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="parent-relations" element={<ParentRelationsPage />} />

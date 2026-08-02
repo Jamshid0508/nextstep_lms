@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { requireAuth } from '../../middlewares/auth.middleware.js';
 import { requireRole } from '../../middlewares/rbac.middleware.js';
 import { ROLES } from '../../constants/roles.js';
@@ -27,8 +28,11 @@ import {
   scheduleUpdateSchema,
   settingSchema,
   settingUpdateSchema,
+  userSchema,
+  userUpdateSchema,
 } from '../../validators/crm.validator.js';
 
+const upload = multer({ storage: multer.memoryStorage() });
 const router = Router();
 
 router.use(requireAuth, requireRole(ROLES.SUPER_ADMIN, ROLES.ADMIN));
@@ -66,6 +70,9 @@ router.patch('/payments/:id', validateBody(paymentUpdateSchema), crmController.u
 router.delete('/payments/:id', crmController.deletePayment);
 
 router.get('/finance', crmController.listFinance);
+router.get('/finance/summary', crmController.getFinanceSummary);
+router.get('/finance/payroll', crmController.listTeacherPayroll);
+router.post('/finance/payroll/calculate', crmController.calculateTeacherPayroll);
 router.post('/finance', validateBody(financeSchema), crmController.createFinance);
 router.patch('/finance/:id', validateBody(financeUpdateSchema), crmController.updateFinance);
 router.delete('/finance/:id', crmController.deleteFinance);
@@ -89,8 +96,11 @@ router.post('/settings', validateBody(settingSchema), crmController.createSettin
 router.patch('/settings/:id', validateBody(settingUpdateSchema), crmController.updateSettings);
 
 router.get('/users', crmController.listUsers);
-router.post('/users', crmController.createUser);
-router.patch('/users/:id', crmController.updateUser);
+router.post('/users', validateBody(userSchema), crmController.createUser);
+router.get('/users/import/template', crmController.downloadUserImportTemplate);
+router.post('/users/import', upload.single('file'), crmController.importUsers);
+router.get('/users/export', crmController.exportUsers);
+router.patch('/users/:id', validateBody(userUpdateSchema), crmController.updateUser);
 router.delete('/users/:id', crmController.deleteUser);
 
 router.get('/parents/:parentId/children', crmController.listParentChildren);

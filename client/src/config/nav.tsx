@@ -30,6 +30,7 @@ const adminNav: NavItem[] = [
   { key: '/attendance', label: "Davomat", icon: <CheckSquareOutlined /> },
   { key: '/payments', label: "To'lovlar", icon: <DollarOutlined /> },
   { key: '/finance', label: 'Moliya', icon: <SolutionOutlined /> },
+  { key: '/finance/payroll', label: 'O‘qituvchilar oyligi', icon: <DollarOutlined /> },
   { key: '/audit-logs', label: 'Audit log', icon: <AuditOutlined /> },
   { key: '/settings', label: 'Sozlamalar', icon: <SettingOutlined /> },
   { key: '/parent-relations', label: 'Ota-ona bog‘lanishi', icon: <TeamOutlined /> },
