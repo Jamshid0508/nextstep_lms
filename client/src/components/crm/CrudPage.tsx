@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Button, Card, Form, Modal, Space, Table, message } from 'antd';
+import { Alert, Button, Card, Form, Modal, Space, Table, message } from 'antd';
 import type { FormInstance, TableColumnsType } from 'antd';
 import { apiClient } from '../../api/client';
 
@@ -29,8 +29,10 @@ export function CrudPage<T extends Record<string, any>>({
 }: CrudPageProps<T>) {
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [form] = Form.useForm();
 
   const fetchItems = async () => {
@@ -39,7 +41,7 @@ export function CrudPage<T extends Record<string, any>>({
       const { data } = await apiClient.get<{ success: true; data: T[] }>(endpoint);
       setItems(data.data);
     } catch {
-      message.error('Ma’lumotlarni yuklashda xatolik yuz berdi');
+      message.error("Ma'lumotlarni yuklashda xatolik yuz berdi");
     } finally {
       setLoading(false);
     }
@@ -57,14 +59,16 @@ export function CrudPage<T extends Record<string, any>>({
   const getBaseEndpoint = () => endpoint.split('?')[0];
 
   const handleCreate = async () => {
+    setFormError(null);
     try {
       const values = await form.validateFields();
+      setSubmitting(true);
       if (editingId) {
         await apiClient.patch(getItemEndpoint(editingId), values);
-        message.success('Ma’lumot yangilandi');
+        message.success("Ma'lumot yangilandi");
       } else {
         await apiClient.post(getBaseEndpoint(), values);
-        message.success('Ma’lumot yaratildi');
+        message.success("Ma'lumot yaratildi");
       }
       form.resetFields();
       setOpen(false);
@@ -73,20 +77,37 @@ export function CrudPage<T extends Record<string, any>>({
       onSuccess?.();
     } catch (err: any) {
       if (err?.errorFields) return; // Antd Form inline validation error
-      const errMsg = err?.response?.data?.message || err?.message || 'Ma’lumotni saqlashda xatolik yuz berdi';
+      const errMsg = err?.response?.data?.message || err?.message || "Ma'lumotni saqlashda xatolik yuz berdi";
+      setFormError(errMsg);
       message.error(errMsg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
       await apiClient.delete(getItemEndpoint(id));
-      message.success('Ma’lumot o’chirildi');
+      message.success("Ma'lumot o'chirildi");
       await fetchItems();
     } catch (err: any) {
-      const errMsg = err?.response?.data?.message || err?.message || 'Ma’lumotni o’chirishda xatolik yuz berdi';
+      const errMsg = err?.response?.data?.message || err?.message || "Ma'lumotni o'chirishda xatolik yuz berdi";
       message.error(errMsg);
     }
+  };
+
+  const handleOpenNew = () => {
+    setEditingId(null);
+    setFormError(null);
+    form.resetFields();
+    setOpen(true);
+  };
+
+  const handleOpenEdit = (record: T) => {
+    setEditingId(String((record as any)._id ?? record.id));
+    setFormError(null);
+    form.setFieldsValue(record);
+    setOpen(true);
   };
 
   const tableColumns = useMemo<TableColumnsType<T>>(() => {
@@ -102,18 +123,11 @@ export function CrudPage<T extends Record<string, any>>({
         key: 'actions',
         render: (_value: unknown, record: T) => (
           <Space>
-            <Button
-              size="small"
-              onClick={() => {
-                setEditingId(String((record as any)._id ?? record.id));
-                form.setFieldsValue(record);
-                setOpen(true);
-              }}
-            >
+            <Button size="small" onClick={() => handleOpenEdit(record)}>
               Tahrirlash
             </Button>
             <Button size="small" danger onClick={() => handleDelete(String((record as any)._id ?? record.id))}>
-              O’chirish
+              O'chirish
             </Button>
           </Space>
         ),
@@ -122,20 +136,41 @@ export function CrudPage<T extends Record<string, any>>({
   }, [columns, form]);
 
   return (
-    <Card title={title} extra={<Space>{extra}{extra ? null : null}<Button onClick={() => setOpen(true)}>Yangi qo’shish</Button></Space>}>
+    <Card
+      title={title}
+      extra={
+        <Space>
+          {extra}
+          <Button type="primary" onClick={handleOpenNew}>
+            Yangi qo'shish
+          </Button>
+        </Space>
+      }
+    >
       <Table rowKey="_id" columns={tableColumns} dataSource={items} loading={loading} />
 
       <Modal
-        title={editingId ? 'Tahrirlash' : 'Yangi qo’shish'}
+        title={editingId ? 'Tahrirlash' : "Yangi qo'shish"}
         open={open}
+        confirmLoading={submitting}
         onCancel={() => {
           setOpen(false);
           setEditingId(null);
+          setFormError(null);
           form.resetFields();
         }}
         onOk={handleCreate}
-        okText={editingId ? 'Saqlash' : 'Qo’shish'}
+        okText={editingId ? 'Saqlash' : "Qo'shish"}
       >
+        {formError && (
+          <Alert
+            type="error"
+            showIcon
+            message="Xatolik yuz berdi"
+            description={formError}
+            style={{ marginBottom: 16, borderRadius: 8 }}
+          />
+        )}
         <Form form={form} layout="vertical">
           {formItems(form)}
         </Form>

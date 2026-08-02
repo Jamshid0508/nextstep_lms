@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
+import { App as AntdApp, ConfigProvider } from 'antd';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShell } from './components/AppShell';
@@ -33,56 +33,58 @@ import { NotificationsPage as ParentNotificationsPage } from './pages/parent/Not
 export function App() {
   return (
     <ConfigProvider theme={antdTheme}>
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
+      <AntdApp>
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
 
-            <Route element={<ProtectedRoute />}>
-              <Route element={<AppShell />}>
-                <Route path="/" element={<DashboardPage />} />
-                <Route path="users" element={<UsersPage />} />
-                <Route path="branches" element={<BranchesPage />} />
-                <Route path="courses" element={<CoursesPage />} />
-                <Route path="groups" element={<GroupsPage />} />
-                <Route path="schedules" element={<SchedulesPage />} />
-                <Route path="attendance" element={<AttendancePage />} />
-                <Route path="payments" element={<PaymentsPage />} />
-                <Route path="finance" element={<FinancePage />} />
-                <Route path="finance/payroll" element={<Navigate to="/finance" replace />} />
-                <Route path="audit-logs" element={<AuditLogsPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="parent-relations" element={<ParentRelationsPage />} />
+              <Route element={<ProtectedRoute />}>
+                <Route element={<AppShell />}>
+                  <Route path="/" element={<DashboardPage />} />
+                  <Route path="users" element={<UsersPage />} />
+                  <Route path="branches" element={<BranchesPage />} />
+                  <Route path="courses" element={<CoursesPage />} />
+                  <Route path="groups" element={<GroupsPage />} />
+                  <Route path="schedules" element={<SchedulesPage />} />
+                  <Route path="attendance" element={<AttendancePage />} />
+                  <Route path="payments" element={<PaymentsPage />} />
+                  <Route path="finance" element={<FinancePage />} />
+                  <Route path="finance/payroll" element={<Navigate to="/finance" replace />} />
+                  <Route path="audit-logs" element={<AuditLogsPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                  <Route path="parent-relations" element={<ParentRelationsPage />} />
 
-                {/* Teacher Routes */}
-                <Route element={<ProtectedRoute roles={['TEACHER']} />}>
-                  <Route path="teacher/groups" element={<TeacherGroupsPage />} />
-                  <Route path="teacher/schedules" element={<TeacherSchedulesPage />} />
-                  <Route path="teacher/attendance" element={<TeacherAttendancePage />} />
-                  <Route path="teacher/payroll" element={<TeacherPayrollPage />} />
-                </Route>
+                  {/* Teacher Routes */}
+                  <Route element={<ProtectedRoute roles={['TEACHER']} />}>
+                    <Route path="teacher/groups" element={<TeacherGroupsPage />} />
+                    <Route path="teacher/schedules" element={<TeacherSchedulesPage />} />
+                    <Route path="teacher/attendance" element={<TeacherAttendancePage />} />
+                    <Route path="teacher/payroll" element={<TeacherPayrollPage />} />
+                  </Route>
 
-                {/* Student Routes */}
-                <Route element={<ProtectedRoute roles={['STUDENT']} />}>
-                  <Route path="student/schedules" element={<StudentSchedulesPage />} />
-                  <Route path="student/attendance" element={<StudentAttendancePage />} />
-                  <Route path="student/payments" element={<StudentPaymentsPage />} />
-                  <Route path="student/notifications" element={<StudentNotificationsPage />} />
-                </Route>
+                  {/* Student Routes */}
+                  <Route element={<ProtectedRoute roles={['STUDENT']} />}>
+                    <Route path="student/schedules" element={<StudentSchedulesPage />} />
+                    <Route path="student/attendance" element={<StudentAttendancePage />} />
+                    <Route path="student/payments" element={<StudentPaymentsPage />} />
+                    <Route path="student/notifications" element={<StudentNotificationsPage />} />
+                  </Route>
 
-                {/* Parent Routes */}
-                <Route element={<ProtectedRoute roles={['PARENT']} />}>
-                  <Route path="parent/children" element={<ParentChildrenPage />} />
-                  <Route path="parent/payments" element={<ParentPaymentsPage />} />
-                  <Route path="parent/notifications" element={<ParentNotificationsPage />} />
+                  {/* Parent Routes */}
+                  <Route element={<ProtectedRoute roles={['PARENT']} />}>
+                    <Route path="parent/children" element={<ParentChildrenPage />} />
+                    <Route path="parent/payments" element={<ParentPaymentsPage />} />
+                    <Route path="parent/notifications" element={<ParentNotificationsPage />} />
+                  </Route>
                 </Route>
               </Route>
-            </Route>
 
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </AntdApp>
     </ConfigProvider>
   );
 }
