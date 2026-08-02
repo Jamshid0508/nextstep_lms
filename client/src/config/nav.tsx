@@ -33,6 +33,10 @@ const adminNav: NavItem[] = [
 
 const teacherNav: NavItem[] = [
   { key: '/', label: 'Dashboard', icon: <DashboardOutlined /> },
+  { key: '/teacher/groups', label: 'Guruhlarim', icon: <TeamOutlined /> },
+  { key: '/teacher/schedules', label: 'Dars jadvali', icon: <CalendarOutlined /> },
+  { key: '/teacher/attendance', label: "Davomat / Yo'qlama", icon: <CheckSquareOutlined /> },
+  { key: '/teacher/payroll', label: 'Oylik maoshim', icon: <DollarOutlined /> },
 ];
 
 const studentNav: NavItem[] = [

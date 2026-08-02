@@ -1,14 +1,11 @@
 import mongoose from 'mongoose';
-import { Homework } from '../../models/Homework.js';
-import { HomeworkSubmission } from '../../models/HomeworkSubmission.js';
-import { Quiz } from '../../models/Quiz.js';
-import { QuizAttempt } from '../../models/QuizAttempt.js';
 import { Group } from '../../models/Group.js';
-import { Notification } from '../../models/Notification.js';
-import { ParentChild } from '../../models/ParentChild.js';
+import { Schedule } from '../../models/Schedule.js';
+import { Attendance } from '../../models/Attendance.js';
+import { FinanceSection } from '../../models/FinanceSection.js';
+import { User } from '../../models/User.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { ok } from '../../utils/apiResponse.js';
-import { HOMEWORK_STATUS, QUIZ_STATUS, QUIZ_ATTEMPT_STATUS, SUBMISSION_STATUS, NOTIFICATION_TYPE } from '../../constants/status.js';
 
 function buildListQuery(query = {}) {
   return { ...query, deleted: { $ne: true } };
@@ -18,305 +15,254 @@ async function ensureTeacherGroup(groupId, teacherId) {
   return Group.findOne({ _id: groupId, teacherId });
 }
 
-function computeQuizMaxScore(quiz) {
-  return (quiz.questions || []).reduce((total, question) => total + (question.points ?? 1), 0);
-}
-
-async function createNotificationsForHomework(homework, studentIds) {
-  if (!Array.isArray(studentIds) || studentIds.length === 0) return;
-
-  const parentRelations = await ParentChild.find({ studentId: { $in: studentIds } }).select('parentId studentId');
-  const now = new Date();
-
-  const notifications = [
-    ...studentIds.map((studentId) => ({
-      userId: studentId,
-      type: NOTIFICATION_TYPE.HOMEWORK_ASSIGNED,
-      title: 'Yangi uy vazifa',
-      message: `“${homework.title}” mavzusida uy vazifasi berildi.`,
-      relatedEntityType: 'Homework',
-      relatedEntityId: homework._id,
-      isRead: false,
-      createdAt: now,
-    })),
-    ...parentRelations.map((relation) => ({
-      userId: relation.parentId,
-      type: NOTIFICATION_TYPE.HOMEWORK_ASSIGNED,
-      title: 'Farzandingizga yangi uy vazifa',
-      message: `“${homework.title}” mavzusida farzandingizga uy vazifa berildi.`,
-      relatedEntityType: 'Homework',
-      relatedEntityId: homework._id,
-      isRead: false,
-      createdAt: now,
-    })),
-  ];
-
-  await Notification.insertMany(notifications);
-}
-
+// GET /teacher/dashboard
 export async function getDashboard(req, res, next) {
   try {
-    const groups = await Group.find({ teacherId: req.user._id }).select('_id');
-    const groupIds = groups.map((group) => group._id);
-    const homeworksCount = await Homework.countDocuments({ teacherId: req.user._id, deleted: { $ne: true } });
-    const quizzesCount = await Quiz.countDocuments({ teacherId: req.user._id, status: QUIZ_STATUS.PUBLISHED });
-    const pendingSubmissions = await HomeworkSubmission.countDocuments({ homeworkId: { $in: groupIds }, status: SUBMISSION_STATUS.SUBMITTED });
+    const groups = await Group.find({ teacherId: req.user._id, status: 'active' }).select('_id name');
+    const groupIds = groups.map((g) => g._id);
+
+    const schedulesCount = await Schedule.countDocuments({ groupId: { $in: groupIds } });
+    const attendanceCount = await Attendance.countDocuments({ groupId: { $in: groupIds } });
 
     ok(res, {
       groupsCount: groups.length,
-      homeworksCount,
-      quizzesCount,
-      pendingSubmissions,
+      schedulesCount,
+      attendanceCount,
     });
   } catch (err) {
     next(err);
   }
 }
 
-// GET /teacher/homeworks — o'qituvchiga tegishli barcha uy vazifalari
-export async function listHomeworks(req, res, next) {
-  try {
-    const homeworks = await Homework.find(buildListQuery({ teacherId: req.user._id }))
-      .populate('groupId', 'name')
-      .populate('teacherId', 'fullName')
-      .sort({ createdAt: -1 });
-    ok(res, homeworks);
-  } catch (err) {
-    next(err);
-  }
-}
-
-// GET /teacher/references — o'qituvchiga tegishli guruhlar
+// GET /teacher/references — o'qituvchiga tegishli guruhlar ro'yxati
 export async function getReferenceData(req, res, next) {
   try {
-    const groups = await Group.find({ teacherId: req.user._id }).select('_id name').sort({ name: 1 });
+    const groups = await Group.find({ teacherId: req.user._id, status: 'active' }).select('_id name').sort({ name: 1 });
     ok(res, { groups });
   } catch (err) {
     next(err);
   }
 }
 
-export async function createHomework(req, res, next) {
+// GET /teacher/groups — o'qituvchining barcha guruhlari
+export async function listTeacherGroups(req, res, next) {
   try {
-    const group = await ensureTeacherGroup(req.body.groupId, req.user._id);
-    if (!group) {
-      throw ApiError.forbidden('Sizga tegishli guruh topilmadi');
-    }
-
-    const homework = await Homework.create({ ...req.body, teacherId: req.user._id });
-
-    await createNotificationsForHomework(homework, group.studentIds ?? []);
-
-    ok(res, homework, 201);
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function getHomework(req, res, next) {
-  try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      throw ApiError.badRequest('Noto‘g‘ri uy vazifasi identifikatori');
-    }
-
-    const homework = await Homework.findOne({ _id: req.params.id, teacherId: req.user._id })
-      .populate('groupId', 'name')
-      .populate('teacherId', 'fullName');
-
-    if (!homework) throw ApiError.notFound('Uy vazifa topilmadi');
-    ok(res, homework);
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function updateHomework(req, res, next) {
-  try {
-    const homework = await Homework.findOneAndUpdate(
-      { _id: req.params.id, teacherId: req.user._id }, 
-      req.body,
-      { new: true, runValidators: true },
-    );
-    if (!homework) throw ApiError.notFound('Uy vazifa topilmadi');
-    ok(res, homework);
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function deleteHomework(req, res, next) {
-  try {
-    const homework = await Homework.findOneAndDelete({ _id: req.params.id, teacherId: req.user._id });
-    if (!homework) throw ApiError.notFound('Uy vazifa topilmadi');
-    ok(res, { id: req.params.id, deleted: true });
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function listHomeworkSubmissions(req, res, next) {
-  try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      throw ApiError.badRequest('Noto‘g‘ri uy vazifasi identifikatori');
-    }
-
-    const homework = await Homework.findOne({ _id: req.params.id, teacherId: req.user._id });
-    if (!homework) throw ApiError.notFound('Uy vazifa topilmadi');
-
-    const submissions = await HomeworkSubmission.find({ homeworkId: homework._id })
-      .populate('studentId', 'fullName')
+    const groups = await Group.find({ teacherId: req.user._id })
+      .populate('courseId', 'name price')
+      .populate('branchId', 'name')
+      .populate('studentIds', 'fullName phone email studentType')
       .sort({ createdAt: -1 });
 
-    ok(res, { homework, submissions });
+    ok(res, groups);
   } catch (err) {
     next(err);
   }
 }
 
-export async function gradeHomeworkSubmission(req, res, next) {
+// GET /teacher/schedules — o'qituvchining dars jadvallari
+export async function listTeacherSchedules(req, res, next) {
   try {
-    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.params.submissionId)) {
-      throw ApiError.badRequest('Noto‘g‘ri identifikator');
-    }
+    const teacherGroups = await Group.find({ teacherId: req.user._id }).select('_id');
+    const groupIds = teacherGroups.map((g) => g._id);
 
-    const homework = await Homework.findOne({ _id: req.params.id, teacherId: req.user._id });
-    if (!homework) throw ApiError.notFound('Uy vazifa topilmadi');
-
-    const submission = await HomeworkSubmission.findOne({ _id: req.params.submissionId, homeworkId: homework._id });
-    if (!submission) throw ApiError.notFound('Topshiriq topilmadi');
-
-    submission.score = req.body.score ?? submission.score;
-    submission.feedback = req.body.feedback ?? submission.feedback;
-    submission.status = req.body.status ?? SUBMISSION_STATUS.GRADED;
-    submission.gradedBy = req.user._id;
-    submission.gradedAt = new Date();
-    await submission.save();
-
-    ok(res, submission);
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function listQuizzes(req, res, next) {
-  try {
-    const quizzes = await Quiz.find(buildListQuery({ teacherId: req.user._id }))
+    const schedules = await Schedule.find({ groupId: { $in: groupIds } })
       .populate('groupId', 'name')
       .populate('teacherId', 'fullName')
       .sort({ createdAt: -1 });
-    ok(res, quizzes);
+
+    ok(res, schedules);
   } catch (err) {
     next(err);
   }
 }
 
-export async function createQuiz(req, res, next) {
+// GET /teacher/attendance/group/:groupId — guruh davomat ma'lumotlari (oylik)
+export async function getTeacherGroupAttendanceDetails(req, res, next) {
   try {
-    const group = await ensureTeacherGroup(req.body.groupId, req.user._id);
+    const { groupId } = req.params;
+    const group = await ensureTeacherGroup(groupId, req.user._id);
     if (!group) {
-      throw ApiError.forbidden('Sizga tegishli guruh topilmadi');
+      throw ApiError.forbidden("Siz ushbu guruhga o'qituvchi qilib biriktirilmagansiz");
     }
 
-    const quiz = await Quiz.create({ ...req.body, teacherId: req.user._id });
-    ok(res, quiz, 201);
-  } catch (err) {
-    next(err);
-  }
-}
+    const targetMonth = Number(req.query?.month ?? new Date().getMonth());
+    const targetYear = Number(req.query?.year ?? new Date().getFullYear());
 
-export async function getQuiz(req, res, next) {
-  try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      throw ApiError.badRequest('Noto‘g‘ri test identifikatori');
-    }
+    const groupData = await Group.findById(groupId)
+      .populate('courseId', 'name price')
+      .populate('branchId', 'name')
+      .populate('studentIds', 'fullName phone email')
+      .lean();
 
-    const quiz = await Quiz.findOne({ _id: req.params.id, teacherId: req.user._id })
-      .populate('groupId', 'name')
-      .populate('teacherId', 'fullName');
+    const schedule = await Schedule.findOne({ groupId }).lean();
 
-    if (!quiz) throw ApiError.notFound('Test topilmadi');
-    ok(res, quiz);
-  } catch (err) {
-    next(err);
-  }
-}
+    const monthStart = new Date(targetYear, targetMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
 
-export async function updateQuiz(req, res, next) {
-  try {
-    const quiz = await Quiz.findOneAndUpdate({ _id: req.params.id, teacherId: req.user._id }, req.body, {
-      new: true,
-      runValidators: true,
+    const attendances = await Attendance.find({
+      groupId,
+      lessonDate: { $gte: monthStart, $lte: monthEnd },
+    })
+      .populate('markedBy', 'fullName')
+      .populate('records.studentId', 'fullName phone')
+      .sort({ lessonDate: 1 })
+      .lean();
+
+    ok(res, {
+      group: groupData,
+      schedule,
+      attendances,
+      month: targetMonth,
+      year: targetYear,
     });
-    if (!quiz) throw ApiError.notFound('Test topilmadi');
-    ok(res, quiz);
   } catch (err) {
     next(err);
   }
 }
 
-export async function deleteQuiz(req, res, next) {
+// POST /teacher/attendance — davomat belgilash / saqlash
+export async function createOrUpdateTeacherAttendance(req, res, next) {
   try {
-    const quiz = await Quiz.findOneAndDelete({ _id: req.params.id, teacherId: req.user._id });
-    if (!quiz) throw ApiError.notFound('Test topilmadi');
-    ok(res, { id: req.params.id, deleted: true });
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function publishQuiz(req, res, next) {
-  try {
-    const quiz = await Quiz.findOneAndUpdate(
-      { _id: req.params.id, teacherId: req.user._id },
-      { status: QUIZ_STATUS.PUBLISHED },
-      { new: true, runValidators: true },
-    );
-    if (!quiz) throw ApiError.notFound('Test topilmadi');
-    ok(res, quiz);
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function listQuizAttempts(req, res, next) {
-  try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      throw ApiError.badRequest('Noto‘g‘ri test identifikatori');
+    const { groupId, lessonDate, records, notes } = req.body;
+    if (!groupId || !lessonDate) {
+      throw ApiError.badRequest("Guruh va dars sanasi kiritilishi shart");
     }
 
-    const quiz = await Quiz.findOne({ _id: req.params.id, teacherId: req.user._id });
-    if (!quiz) throw ApiError.notFound('Test topilmadi');
+    const group = await ensureTeacherGroup(groupId, req.user._id);
+    if (!group) {
+      throw ApiError.forbidden("Siz ushbu guruhga davomat belgilay olmaysiz");
+    }
 
-    const attempts = await QuizAttempt.find({ quizId: quiz._id })
-      .populate('studentId', 'fullName')
-      .sort({ createdAt: -1 });
+    const startOfDay = new Date(lessonDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(lessonDate);
+    endOfDay.setHours(23, 59, 59, 999);
 
-    ok(res, { quiz, attempts });
+    const existing = await Attendance.findOne({
+      groupId,
+      lessonDate: { $gte: startOfDay, $lte: endOfDay },
+    });
+
+    const payload = {
+      groupId,
+      lessonDate: new Date(lessonDate),
+      records: records || [],
+      notes: notes || '',
+      markedBy: req.user._id,
+    };
+
+    if (existing) {
+      const updated = await Attendance.findByIdAndUpdate(existing._id, payload, {
+        new: true,
+        runValidators: true,
+      });
+      return ok(res, updated);
+    }
+
+    const attendance = await Attendance.create(payload);
+    ok(res, attendance, 201);
   } catch (err) {
     next(err);
   }
 }
 
-export async function gradeQuizAttempt(req, res, next) {
+// GET /teacher/payroll — o'qituvchining oylik maoshi va tushuntirish
+export async function getTeacherPayroll(req, res, next) {
   try {
-    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.params.attemptId)) {
-      throw ApiError.badRequest('Noto‘g‘ri identifikator');
-    }
+    const targetMonth = Number(req.query?.month ?? new Date().getMonth());
+    const targetYear = Number(req.query?.year ?? new Date().getFullYear());
 
-    const quiz = await Quiz.findOne({ _id: req.params.id, teacherId: req.user._id });
-    if (!quiz) throw ApiError.notFound('Test topilmadi');
+    // 1. Fetch FinanceSection records for this teacher
+    const records = await FinanceSection.find({
+      teacherId: req.user._id,
+      month: targetMonth,
+      year: targetYear,
+    }).sort({ date: -1 });
 
-    const attempt = await QuizAttempt.findOne({ _id: req.params.attemptId, quizId: quiz._id });
-    if (!attempt) throw ApiError.notFound('Urinish topilmadi');
+    const teacherSalaryRecord = records.find((r) => r.category === 'teacher_salary');
+    const bonuses = records.filter((r) => r.category === 'bonus');
+    const penalties = records.filter((r) => r.category === 'penalty');
 
-    attempt.score = req.body.score ?? attempt.score;
-    attempt.feedback = req.body.feedback ?? attempt.feedback;
-    attempt.status = req.body.status ?? QUIZ_ATTEMPT_STATUS.GRADED;
-    attempt.gradedBy = req.user._id;
-    attempt.gradedAt = new Date();
-    await attempt.save();
+    const totalBonus = bonuses.reduce((s, b) => s + (b.amount || 0), 0);
+    const totalPenalty = penalties.reduce((s, p) => s + (p.amount || 0), 0);
 
-    ok(res, attempt);
+    // 2. Fetch group attendance breakdown for live estimate
+    const groups = await Group.find({ teacherId: req.user._id, status: { $ne: 'deleted' } })
+      .populate('courseId', 'price')
+      .lean();
+
+    const monthStart = new Date(targetYear, targetMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
+
+    const attendances = await Attendance.find({
+      groupId: { $in: groups.map((g) => g._id) },
+      lessonDate: { $gte: monthStart, $lte: monthEnd },
+    }).lean();
+
+    const attendanceMap = new Map();
+    attendances.forEach((att) => {
+      const gId = String(att.groupId);
+      if (!attendanceMap.has(gId)) attendanceMap.set(gId, []);
+      attendanceMap.get(gId).push(att);
+    });
+
+    const allStudentIds = [];
+    groups.forEach((g) => {
+      if (Array.isArray(g.studentIds)) {
+        g.studentIds.forEach((sid) => allStudentIds.push(String(sid)));
+      }
+    });
+
+    const students = await User.find({ _id: { $in: [...new Set(allStudentIds)] } }).select('_id fullName').lean();
+    const studentMap = new Map(students.map((s) => [String(s._id), s.fullName]));
+
+    let calculatedBaseSalary = 0;
+    const studentBreakdown = [];
+
+    groups.forEach((group) => {
+      const studentIds = Array.isArray(group.studentIds) ? group.studentIds.map((s) => String(s)) : [];
+      const lessonsInMonth = attendanceMap.get(String(group._id)) ?? [];
+      const totalLessons = lessonsInMonth.length > 0 ? lessonsInMonth.length : 12;
+      const studentFee = Number(group.courseId?.price || 300000);
+      const perLessonFee = totalLessons > 0 ? studentFee / totalLessons : 0;
+
+      studentIds.forEach((studentId) => {
+        const presentCount = lessonsInMonth.reduce((acc, lesson) => {
+          const record = (lesson.records ?? []).find((r) => String(r.studentId) === studentId);
+          return acc + (record && record.status === 'present' ? 1 : 0);
+        }, 0);
+
+        const contribution = Number((presentCount * perLessonFee).toFixed(2));
+        calculatedBaseSalary += contribution;
+
+        studentBreakdown.push({
+          groupId: group._id,
+          groupName: group.name,
+          studentId,
+          studentName: studentMap.get(studentId) || "O'quvchi",
+          studentFee,
+          totalLessons,
+          presentCount,
+          perLessonFee: Number(perLessonFee.toFixed(2)),
+          contribution,
+        });
+      });
+    });
+
+    const finalBaseSalary = teacherSalaryRecord ? teacherSalaryRecord.amount : calculatedBaseSalary;
+    const netPayable = finalBaseSalary + totalBonus - totalPenalty;
+
+    ok(res, {
+      teacherSalaryRecord,
+      baseSalary: finalBaseSalary,
+      totalBonus,
+      totalPenalty,
+      netPayable,
+      bonusesAndPenalties: [...bonuses, ...penalties],
+      studentBreakdown,
+      month: targetMonth,
+      year: targetYear,
+    });
   } catch (err) {
     next(err);
   }

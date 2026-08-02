@@ -18,6 +18,10 @@ import { FinancePage } from './pages/FinancePage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ParentRelationsPage } from './pages/ParentRelationsPage';
+import { GroupsPage as TeacherGroupsPage } from './pages/teacher/GroupsPage';
+import { SchedulesPage as TeacherSchedulesPage } from './pages/teacher/SchedulesPage';
+import { AttendancePage as TeacherAttendancePage } from './pages/teacher/AttendancePage';
+import { PayrollPage as TeacherPayrollPage } from './pages/teacher/PayrollPage';
 import { SchedulesPage as StudentSchedulesPage } from './pages/student/SchedulesPage';
 import { AttendancePage as StudentAttendancePage } from './pages/student/AttendancePage';
 import { PaymentsPage as StudentPaymentsPage } from './pages/student/PaymentsPage';
@@ -50,14 +54,23 @@ export function App() {
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="parent-relations" element={<ParentRelationsPage />} />
 
+                {/* Teacher Routes */}
                 <Route element={<ProtectedRoute roles={['TEACHER']} />}>
+                  <Route path="teacher/groups" element={<TeacherGroupsPage />} />
+                  <Route path="teacher/schedules" element={<TeacherSchedulesPage />} />
+                  <Route path="teacher/attendance" element={<TeacherAttendancePage />} />
+                  <Route path="teacher/payroll" element={<TeacherPayrollPage />} />
                 </Route>
+
+                {/* Student Routes */}
                 <Route element={<ProtectedRoute roles={['STUDENT']} />}>
                   <Route path="student/schedules" element={<StudentSchedulesPage />} />
                   <Route path="student/attendance" element={<StudentAttendancePage />} />
                   <Route path="student/payments" element={<StudentPaymentsPage />} />
                   <Route path="student/notifications" element={<StudentNotificationsPage />} />
                 </Route>
+
+                {/* Parent Routes */}
                 <Route element={<ProtectedRoute roles={['PARENT']} />}>
                   <Route path="parent/children" element={<ParentChildrenPage />} />
                   <Route path="parent/payments" element={<ParentPaymentsPage />} />
