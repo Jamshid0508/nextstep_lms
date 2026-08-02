@@ -20,13 +20,22 @@ interface ReferenceData {
   teachers: Array<{ _id: string; fullName: string }>;
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  active: 'Faol',
+  closed: 'Yakunlangan',
+  submitted: 'Topshirilgan',
+  graded: 'Baholangan',
+  late: 'Kechikkan',
+  not_submitted: 'Topshirilmagan',
+};
+
 const columns = [
   { title: 'Mavzu', dataIndex: 'title' as const },
   { title: 'Guruh', dataIndex: 'groupId' as const, render: (value: unknown) => (value as any)?.name ?? '-' },
-  { title: 'O’qituvchi', dataIndex: 'teacherId' as const, render: (value: unknown) => (value as any)?.fullName ?? '-' },
+  { title: "O'qituvchi", dataIndex: 'teacherId' as const, render: (value: unknown) => (value as any)?.fullName ?? '-' },
   { title: 'Yakunlanish', dataIndex: 'dueDate' as const, render: (value: unknown) => value ? dayjs(String(value)).format('DD.MM.YYYY') : '-' },
   { title: 'Maksimal ball', dataIndex: 'maxScore' as const },
-  { title: 'Holat', dataIndex: 'status' as const },
+  { title: 'Holat', dataIndex: 'status' as const, render: (v: unknown) => STATUS_LABELS[String(v)] ?? String(v ?? '-') },
 ];
 
 export function HomeworksPage() {
@@ -62,7 +71,10 @@ export function HomeworksPage() {
         <InputNumber min={1} style={{ width: '100%' }} />
       </Form.Item>
       <Form.Item name="status" label="Holat" initialValue="active">
-        <Select options={[{ value: 'active', label: 'Active' }, { value: 'closed', label: 'Closed' }]} />
+        <Select options={[
+          { value: 'active', label: 'Faol' },
+          { value: 'closed', label: 'Yakunlangan' },
+        ]} />
       </Form.Item>
     </>
   );

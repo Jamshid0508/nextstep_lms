@@ -53,7 +53,10 @@ export function HomeworksPage() {
         <InputNumber min={1} style={{ width: '100%' }} />
       </Form.Item>
       <Form.Item name="status" label="Holat" initialValue="active">
-        <Select options={[{ value: 'active', label: 'Active' }, { value: 'closed', label: 'Closed' }]} />
+        <Select options={[
+          { value: 'active', label: 'Faol' },
+          { value: 'closed', label: 'Yakunlangan' },
+        ]} />
       </Form.Item>
     </>
   );

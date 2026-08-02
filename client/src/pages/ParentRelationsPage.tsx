@@ -71,11 +71,11 @@ export function ParentRelationsPage() {
         <Form.Item name="studentId" label="Talaba" rules={[{ required: true, message: 'Talaba tanlang' }]}> 
           <Select options={studentSelectOptions} />
         </Form.Item>
-        <Form.Item name="relationship" label="Bog‘lanish turi" initialValue="guardian">
+        <Form.Item name="relationship" label="Bog'lanish turi" initialValue="guardian">
           <Select options={[
-            { value: 'father', label: 'Father' },
-            { value: 'mother', label: 'Mother' },
-            { value: 'guardian', label: 'Guardian' },
+            { value: 'father', label: 'Otasi' },
+            { value: 'mother', label: 'Onasi' },
+            { value: 'guardian', label: 'Vasiy / Homiysi' },
           ]} />
         </Form.Item>
         <Button htmlType="submit" type="primary">Bog‘lash</Button>

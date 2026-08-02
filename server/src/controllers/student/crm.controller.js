@@ -129,7 +129,7 @@ export async function listQuizzes(req, res, next) {
 export async function startQuizAttempt(req, res, next) {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
-      throw ApiError.badRequest('Noto‘g‘ri test identifikatori');
+      throw ApiError.badRequest("Noto'g'ri test identifikatori");
     }
 
     const quiz = await Quiz.findOne({ _id: req.params.id, status: QUIZ_STATUS.PUBLISHED });
@@ -137,6 +137,36 @@ export async function startQuizAttempt(req, res, next) {
 
     const group = await Group.findOne({ _id: quiz.groupId, studentIds: req.user._id });
     if (!group) throw ApiError.forbidden('Siz bu guruhga tegishli emassiz');
+
+    // 1. Vaqt oralig'i nazorati
+    const now = new Date();
+    if (quiz.availableFrom && new Date(quiz.availableFrom) > now) {
+      throw ApiError.badRequest('Test topshirish vaqti hali boshlanmagan');
+    }
+    if (quiz.availableTo && new Date(quiz.availableTo) < now) {
+      throw ApiError.badRequest('Test topshirish vaqti tugagan');
+    }
+
+    // 2. Urinishlar soni nazorati
+    const attemptsAllowed = quiz.attemptsAllowed ?? 1;
+    const completedAttempts = await QuizAttempt.countDocuments({
+      quizId: quiz._id,
+      studentId: req.user._id,
+      status: { $ne: QUIZ_ATTEMPT_STATUS.IN_PROGRESS },
+    });
+    if (completedAttempts >= attemptsAllowed) {
+      throw ApiError.badRequest(`Ruxsat etilgan urinishlar soni tugagan (${attemptsAllowed} ta)`);
+    }
+
+    // 3. Faol urinishni qaytarish (dublikat yaratmaslik)
+    const existingAttempt = await QuizAttempt.findOne({
+      quizId: quiz._id,
+      studentId: req.user._id,
+      status: QUIZ_ATTEMPT_STATUS.IN_PROGRESS,
+    });
+    if (existingAttempt) {
+      return ok(res, existingAttempt, 200);
+    }
 
     const attempt = await new QuizAttempt({
       quizId: quiz._id,
@@ -172,7 +202,8 @@ export async function submitQuizAttempt(req, res, next) {
       if (!question) continue;
       if (question.type === 'single' || question.type === 'multiple' || question.type === 'true_false') {
         const correct = Array.isArray(answer.selectedOptions)
-          ? answer.selectedOptions.sort().join(',') === (question.correctAnswers || []).sort().join(',')
+          ? answer.selectedOptions.sort((a, b) => a - b).join(',') ===
+            (question.correctAnswers || []).sort((a, b) => a - b).join(',')
           : false;
         if (correct) score += question.points ?? 1;
       }

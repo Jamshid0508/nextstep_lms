@@ -73,13 +73,24 @@ export async function getDashboard(req, res, next) {
   }
 }
 
-export async function getReferenceData(req, res, next) {
+// GET /teacher/homeworks — o'qituvchiga tegishli barcha uy vazifalari
+export async function listHomeworks(req, res, next) {
   try {
     const homeworks = await Homework.find(buildListQuery({ teacherId: req.user._id }))
       .populate('groupId', 'name')
       .populate('teacherId', 'fullName')
       .sort({ createdAt: -1 });
     ok(res, homeworks);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /teacher/references — o'qituvchiga tegishli guruhlar
+export async function getReferenceData(req, res, next) {
+  try {
+    const groups = await Group.find({ teacherId: req.user._id }).select('_id name').sort({ name: 1 });
+    ok(res, { groups });
   } catch (err) {
     next(err);
   }

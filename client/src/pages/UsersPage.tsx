@@ -57,9 +57,9 @@ const renderForm = (_form: FormInstance) => (
     <Form.Item name="status" label="Holat" initialValue="active">
       <Select
         options={[
-          { value: 'active', label: 'Active' },
-          { value: 'blocked', label: 'Blocked' },
-          { value: 'pending', label: 'Pending' },
+          { value: 'active', label: 'Faol' },
+          { value: 'blocked', label: 'Bloklangan' },
+          { value: 'pending', label: 'Kutilmoqda' },
         ]}
       />
     </Form.Item>
@@ -180,7 +180,11 @@ export function UsersPage() {
         );
       },
     },
-    { title: 'Holat', dataIndex: 'status' as const, render: (value: unknown) => <span>{String(value)}</span> },
+    { title: 'Holat', dataIndex: 'status' as const, render: (value: unknown) => {
+      const v = String(value);
+      const labels: Record<string, string> = { active: 'Faol', blocked: 'Bloklangan', pending: 'Kutilmoqda', suspended: 'Muzlatilgan' };
+      return <span>{labels[v] ?? v}</span>;
+    }},
   ];
 
   return (

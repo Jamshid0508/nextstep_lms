@@ -21,14 +21,20 @@ interface ReferenceData {
   teachers: Array<{ _id: string; fullName: string }>;
 }
 
+const QUIZ_STATUS_LABELS: Record<string, string> = {
+  draft: 'Qoralama',
+  published: 'Nashr qilingan',
+  closed: 'Yakunlangan',
+};
+
 const columns = [
   { title: 'Test', dataIndex: 'title' as const },
   { title: 'Guruh', dataIndex: 'groupId' as const, render: (value: unknown) => (value as any)?.name ?? '-' },
-  { title: 'O’qituvchi', dataIndex: 'teacherId' as const, render: (value: unknown) => (value as any)?.fullName ?? '-' },
+  { title: "O'qituvchi", dataIndex: 'teacherId' as const, render: (value: unknown) => (value as any)?.fullName ?? '-' },
   { title: 'Boshlanish', dataIndex: 'availableFrom' as const, render: (value: unknown) => value ? dayjs(String(value)).format('DD.MM.YYYY') : '-' },
   { title: 'Tugash', dataIndex: 'availableTo' as const, render: (value: unknown) => value ? dayjs(String(value)).format('DD.MM.YYYY') : '-' },
   { title: 'Urinishlar', dataIndex: 'attemptsAllowed' as const },
-  { title: 'Holat', dataIndex: 'status' as const },
+  { title: 'Holat', dataIndex: 'status' as const, render: (v: unknown) => QUIZ_STATUS_LABELS[String(v)] ?? String(v ?? '-') },
 ];
 
 export function QuizzesPage() {
@@ -67,7 +73,11 @@ export function QuizzesPage() {
         <InputNumber min={1} style={{ width: '100%' }} />
       </Form.Item>
       <Form.Item name="status" label="Holat" initialValue="draft">
-        <Select options={[{ value: 'draft', label: 'Draft' }, { value: 'published', label: 'Published' }, { value: 'closed', label: 'Closed' }]} />
+        <Select options={[
+          { value: 'draft', label: 'Qoralama' },
+          { value: 'published', label: 'Nashr qilingan' },
+          { value: 'closed', label: 'Yakunlangan' },
+        ]} />
       </Form.Item>
     </>
   );

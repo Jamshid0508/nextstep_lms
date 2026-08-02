@@ -1,23 +1,36 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Select, message } from 'antd';
+import { Card, Table, Select, Tag, message } from 'antd';
+import dayjs from 'dayjs';
 import { apiClient } from '../../api/client';
 
 interface ChildRecord {
   _id: string;
-  studentId?: { _id?: string; fullName?: string };
+  studentId?: { _id?: string; fullName?: string; phone?: string; email?: string; status?: string };
+  relationship?: string;
 }
 
-interface ParentHomeworkRecord {
+interface HomeworkRecord {
   _id: string;
-  homeworkId?: { title?: string };
+  title?: string;
+  groupId?: { name?: string };
+  teacherId?: { fullName?: string };
   dueDate?: string;
   status?: string;
 }
 
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  active: { label: 'Faol', color: 'blue' },
+  closed: { label: 'Yakunlangan', color: 'default' },
+  submitted: { label: 'Topshirilgan', color: 'green' },
+  graded: { label: 'Baholangan', color: 'purple' },
+  late: { label: 'Kechikkan', color: 'orange' },
+  not_submitted: { label: 'Topshirilmagan', color: 'red' },
+};
+
 export function HomeworksPage() {
   const [children, setChildren] = useState<ChildRecord[]>([]);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
-  const [items, setItems] = useState<ParentHomeworkRecord[]>([]);
+  const [items, setItems] = useState<HomeworkRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadChildren = async () => {
@@ -25,18 +38,23 @@ export function HomeworksPage() {
       const { data } = await apiClient.get<{ success: true; data: ChildRecord[] }>('/parent/children');
       setChildren(data.data);
       if (data.data.length > 0 && !selectedChildId) {
-        setSelectedChildId(data.data[0]._id);
+        // studentId._id ni tanlaymiz (talabaning o'z User IDsi)
+        const firstStudentId = data.data[0].studentId?._id;
+        if (firstStudentId) setSelectedChildId(firstStudentId);
       }
     } catch {
       message.error('Farzandlar yuklashda xatolik');
     }
   };
 
-  const loadHomeworks = async (childId: string) => {
+  const loadHomeworks = async (studentId: string) => {
     setLoading(true);
     try {
-      const { data } = await apiClient.get<{ success: true; data: { homeworks: ParentHomeworkRecord[] } }>(`/parent/children/${childId}/homeworks`);
-      setItems(data.data.homeworks);
+      const { data } = await apiClient.get<{
+        success: true;
+        data: { homeworks: HomeworkRecord[] };
+      }>(`/parent/children/${studentId}/homeworks`);
+      setItems(data.data.homeworks ?? []);
     } catch {
       message.error('Uy vazifalarini yuklashda xatolik');
     } finally {
@@ -58,21 +76,42 @@ export function HomeworksPage() {
     <Card title="Farzandlar uy vazifalari">
       <Select
         style={{ width: 300, marginBottom: 16 }}
+        placeholder="Farzandni tanlang"
         value={selectedChildId ?? undefined}
         onChange={(value) => setSelectedChildId(value)}
-        options={children.map((child) => ({ value: child._id, label: child.studentId?.fullName ?? 'Noma’lum' }))}
+        options={children.map((child) => ({
+          value: child.studentId?._id ?? child._id,
+          label: child.studentId?.fullName ?? "Noma'lum",
+        }))}
       />
 
       <Table
         rowKey="_id"
         columns={[
-          { title: 'Uy vazifa', dataIndex: 'homeworkId', render: (value: unknown) => (value as any)?.title ?? '-' },
-          { title: 'Yakunlanish', dataIndex: 'dueDate' as const },
-          { title: 'Holat', dataIndex: 'status' as const },
+          { title: 'Uy vazifasi', dataIndex: 'title' as const },
+          {
+            title: 'Guruh',
+            dataIndex: 'groupId' as const,
+            render: (v: unknown) => (v as any)?.name ?? '-',
+          },
+          {
+            title: 'Yakunlanish',
+            dataIndex: 'dueDate' as const,
+            render: (v: unknown) => (v ? dayjs(String(v)).format('DD.MM.YYYY') : '-'),
+          },
+          {
+            title: 'Holat',
+            dataIndex: 'status' as const,
+            render: (v: string) => {
+              const st = STATUS_LABELS[v];
+              return st ? <Tag color={st.color}>{st.label}</Tag> : v ?? '-';
+            },
+          },
         ]}
         dataSource={items}
         loading={loading}
-        pagination={false}
+        pagination={{ pageSize: 10 }}
+        locale={{ emptyText: "Uy vazifalari topilmadi" }}
       />
     </Card>
   );
