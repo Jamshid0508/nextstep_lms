@@ -824,6 +824,18 @@ async function performPayrollCalculation(targetMonth, targetYear, defaultFee = 3
     });
   }
 
+  // Collect all unique student IDs first to avoid N+1 queries
+  const allStudentIds = [];
+  for (const group of groups) {
+    if (Array.isArray(group.studentIds)) {
+      for (const sid of group.studentIds) {
+        allStudentIds.push(String(sid));
+      }
+    }
+  }
+  const allStudents = await User.find({ _id: { $in: [...new Set(allStudentIds)] } }).select('_id fullName').lean();
+  const globalStudentMap = new Map(allStudents.map((s) => [String(s._id), s.fullName]));
+
   for (const group of groups) {
     const teacherId = group.teacherId?._id ? String(group.teacherId._id) : null;
     if (!teacherId) continue;
@@ -859,9 +871,6 @@ async function performPayrollCalculation(targetMonth, targetYear, defaultFee = 3
     const studentFee = Number(group.courseId?.price || defaultFee);
     const perLessonFee = totalLessons > 0 ? studentFee / totalLessons : 0;
 
-    const students = await User.find({ _id: { $in: studentIds } }).select('_id fullName').lean();
-    const studentMap = new Map(students.map((s) => [String(s._id), s.fullName]));
-
     for (const studentId of studentIds) {
       const presentCount = lessonsInMonth.reduce((acc, lesson) => {
         const record = (lesson.records ?? []).find((r) => String(r.studentId) === studentId);
@@ -878,7 +887,7 @@ async function performPayrollCalculation(targetMonth, targetYear, defaultFee = 3
         groupId: group._id,
         groupName: group.name,
         studentId,
-        studentName: studentMap.get(studentId) || "O'quvchi",
+        studentName: globalStudentMap.get(studentId) || "O'quvchi",
         studentFee,
         totalLessons,
         presentCount,
@@ -1015,6 +1024,18 @@ export async function getTeacherPayrollBreakdown(req, res, next) {
     const studentBreakdown = [];
     let baseSalary = 0;
 
+    // Pre-fetch all unique student IDs to avoid N+1 queries
+    const allStudentIds = [];
+    for (const group of groups) {
+      if (Array.isArray(group.studentIds)) {
+        for (const sid of group.studentIds) {
+          allStudentIds.push(String(sid));
+        }
+      }
+    }
+    const allStudents = await User.find({ _id: { $in: [...new Set(allStudentIds)] } }).select('_id fullName').lean();
+    const globalStudentMap = new Map(allStudents.map((s) => [String(s._id), s.fullName]));
+
     for (const group of groups) {
       const studentIds = Array.isArray(group.studentIds) ? group.studentIds.map((s) => String(s)) : [];
       const lessonsInMonth = attendanceMap.get(String(group._id)) ?? [];
@@ -1034,9 +1055,6 @@ export async function getTeacherPayrollBreakdown(req, res, next) {
       const studentFee = Number(group.courseId?.price || defaultFee);
       const perLessonFee = totalLessons > 0 ? studentFee / totalLessons : 0;
 
-      const students = await User.find({ _id: { $in: studentIds } }).select('_id fullName').lean();
-      const studentMap = new Map(students.map((s) => [String(s._id), s.fullName]));
-
       for (const studentId of studentIds) {
         const presentCount = lessonsInMonth.reduce((acc, lesson) => {
           const record = (lesson.records ?? []).find((r) => String(r.studentId) === studentId);
@@ -1050,7 +1068,7 @@ export async function getTeacherPayrollBreakdown(req, res, next) {
           groupId: group._id,
           groupName: group.name,
           studentId,
-          studentName: studentMap.get(studentId) || "O'quvchi",
+          studentName: globalStudentMap.get(studentId) || "O'quvchi",
           studentFee,
           totalLessons,
           presentCount,

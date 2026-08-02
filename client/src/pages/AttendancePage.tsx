@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Avatar,
   Button,
   Card,
@@ -586,8 +587,17 @@ export function AttendancePage() {
         </div>
 
         {/* Students List Table */}
-        <Table
-          rowKey="_id"
+        {filteredStudents.length === 0 && records.length === 0 ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="Guruhga o'quvchilar biriktirilmagan"
+            description={"Yo'qlama oldindan Guruhlar bo'limiga o'tib o'quvchilarni biriktirish kerak."}
+            style={{ marginBottom: 16, borderRadius: 8 }}
+          />
+        ) : (
+          <Table
+            rowKey="_id"
           dataSource={filteredStudents}
           pagination={false}
           size="middle"
@@ -701,6 +711,7 @@ export function AttendancePage() {
             },
           ]}
         />
+        )}
       </Modal>
     </div>
   );

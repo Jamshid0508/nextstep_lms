@@ -314,8 +314,8 @@ export function FinancePage() {
   };
 
   // Filtered Lists
-  const incomeRecords = records.filter((r) => r.kind === 'income' || r.category === 'income');
-  const expenseRecords = records.filter((r) => r.kind === 'expense' || r.category === 'expense' || r.category === 'penalty');
+  const incomeRecords = records.filter((r) => r.kind === 'income');
+  const expenseRecords = records.filter((r) => r.kind === 'expense');
 
   // Columns for Income Table
   const incomeColumns = [

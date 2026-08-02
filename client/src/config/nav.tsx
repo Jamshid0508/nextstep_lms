@@ -30,6 +30,9 @@ const adminNav: NavItem[] = [
   { key: '/audit-logs', label: 'Audit log', icon: <AuditOutlined /> },
   { key: '/settings', label: 'Sozlamalar', icon: <SettingOutlined /> },
   { key: '/parent-relations', label: 'Ota-ona bog‘lanishi', icon: <TeamOutlined /> },
+  { key: '/homeworks', label: 'Uy vazifalari', icon: <FileTextOutlined /> },
+  { key: '/quizzes', label: 'Testlar', icon: <SolutionOutlined /> },
+  { key: '/grades', label: 'Baholar', icon: <AuditOutlined /> },
 ];
 
 const teacherNav: NavItem[] = [

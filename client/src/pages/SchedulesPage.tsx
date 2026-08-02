@@ -189,7 +189,7 @@ export function SchedulesPage() {
       const values = await form.validateFields();
       setSubmitting(true);
       await apiClient.post('/superadmin/schedules', values);
-      message.success("Yangisiz dars jadvali muvaffaqiyatli qo'shildi");
+      message.success("Yangi dars jadvali muvaffaqiyatli qo'shildi");
       form.resetFields();
       setModalOpen(false);
       await fetchSchedules();

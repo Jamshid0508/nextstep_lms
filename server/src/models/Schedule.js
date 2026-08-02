@@ -9,7 +9,7 @@ const scheduleSchema = new mongoose.Schema(
     weekDays: [{ type: String, enum: WEEK_DAYS }],
     startTime: { type: String, required: true },
     endTime: { type: String, required: true },
-    startDate: { type: Date, required: true },
+    startDate: { type: Date },
     lessonDuration: { type: Number },
     durationValue: { type: Number },
     durationUnit: { type: String, enum: ['week', 'month'], default: 'month' },

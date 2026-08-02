@@ -71,7 +71,7 @@ const PAYMENT_TYPES = [
   { value: 'monthly', label: 'Oylik' },
   { value: 'one_time', label: 'Bir martalik' },
   { value: 'discount', label: 'Chegirma' },
-  { value: 'penalty', label: 'Jarroha' },
+  { value: 'penalty', label: 'Jarima' },
 ];
 
 function formatMoney(value?: number) {
