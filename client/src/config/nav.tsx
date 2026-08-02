@@ -16,7 +16,7 @@ import type { Role } from '../types';
 
 export type NavItem = NonNullable<MenuProps['items']>[number];
 
-const adminNav: NavItem[] = [
+const superAdminNav: NavItem[] = [
   { key: '/', label: 'Dashboard', icon: <DashboardOutlined /> },
   { key: '/users', label: 'Foydalanuvchilar', icon: <UserOutlined /> },
   { key: '/branches', label: 'Filiallar', icon: <BankOutlined /> },
@@ -28,6 +28,18 @@ const adminNav: NavItem[] = [
   { key: '/finance', label: 'Moliya', icon: <SolutionOutlined /> },
   { key: '/audit-logs', label: 'Audit log', icon: <AuditOutlined /> },
   { key: '/settings', label: 'Sozlamalar', icon: <SettingOutlined /> },
+  { key: '/parent-relations', label: "Ota-ona bog'lanishi", icon: <TeamOutlined /> },
+];
+
+const branchAdminNav: NavItem[] = [
+  { key: '/', label: 'Dashboard', icon: <DashboardOutlined /> },
+  { key: '/users', label: 'Foydalanuvchilar', icon: <UserOutlined /> },
+  { key: '/courses', label: 'Kurslar', icon: <BookOutlined /> },
+  { key: '/groups', label: 'Guruhlar', icon: <TeamOutlined /> },
+  { key: '/schedules', label: 'Dars jadvali', icon: <CalendarOutlined /> },
+  { key: '/attendance', label: "Davomat", icon: <CheckSquareOutlined /> },
+  { key: '/payments', label: "To'lovlar", icon: <DollarOutlined /> },
+  { key: '/finance', label: 'Moliya', icon: <SolutionOutlined /> },
   { key: '/parent-relations', label: "Ota-ona bog'lanishi", icon: <TeamOutlined /> },
 ];
 
@@ -57,8 +69,9 @@ const parentNav: NavItem[] = [
 export function getNavForRole(role: Role): NavItem[] {
   switch (role) {
     case 'SUPER_ADMIN':
+      return superAdminNav;
     case 'ADMIN':
-      return adminNav;
+      return branchAdminNav;
     case 'TEACHER':
       return teacherNav;
     case 'STUDENT':

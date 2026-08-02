@@ -1,9 +1,14 @@
+import { useEffect, useState } from 'react';
 import { Button, Form, Input, Select, Upload, message, Space, Tabs } from 'antd';
 import type { FormInstance } from 'antd';
 import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { CrudPage } from '../components/crm/CrudPage';
 import { apiClient } from '../api/client';
-import { useState } from 'react';
+
+interface BranchInfo {
+  _id: string;
+  name: string;
+}
 
 interface UserRecord {
   _id: string;
@@ -13,61 +18,23 @@ interface UserRecord {
   role: 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PARENT';
   status: 'active' | 'blocked' | 'pending';
   studentType?: 'restricted' | 'paid';
+  branchId?: BranchInfo | string;
 }
 
-const renderForm = (_form: FormInstance) => (
-  <>
-    <Form.Item name="fullName" label="F.I.Sh" rules={[{ required: true, message: 'F.I.Sh kiriting' }]}> 
-      <Input />
-    </Form.Item>
-    <Form.Item name="phone" label="Telefon" rules={[{ required: true, message: 'Telefon kiriting' }]}> 
-      <Input />
-    </Form.Item>
-    <Form.Item name="email" label="Email">
-      <Input />
-    </Form.Item>
-    <Form.Item name="role" label="Rol" rules={[{ required: true, message: 'Rol tanlang' }]}> 
-      <Select
-        options={[
-          { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN' },
-          { value: 'ADMIN', label: 'ADMIN' },
-          { value: 'TEACHER', label: 'TEACHER' },
-          { value: 'STUDENT', label: 'STUDENT' },
-          { value: 'PARENT', label: 'PARENT' },
-        ]}
-      />
-    </Form.Item>
-    <Form.Item shouldUpdate={(prevValues, currentValues) => prevValues.role !== currentValues.role} noStyle>
-      {({ getFieldValue }) =>
-        getFieldValue('role') === 'STUDENT' ? (
-          <Form.Item name="studentType" label="Talaba turi" initialValue="restricted">
-            <Select
-              options={[
-                { value: 'restricted', label: 'Restr' },
-                { value: 'paid', label: 'Pulli' },
-              ]}
-            />
-          </Form.Item>
-        ) : null
-      }
-    </Form.Item>
-    <Form.Item name="password" label="Parol" rules={[{ required: true, message: 'Parol kiriting' }]}> 
-      <Input.Password />
-    </Form.Item>
-    <Form.Item name="status" label="Holat" initialValue="active">
-      <Select
-        options={[
-          { value: 'active', label: 'Faol' },
-          { value: 'blocked', label: 'Bloklangan' },
-          { value: 'pending', label: 'Kutilmoqda' },
-        ]}
-      />
-    </Form.Item>
-  </>
-);
+interface ReferenceData {
+  branches: BranchInfo[];
+}
 
 export function UsersPage() {
   const [reloadKey, setReloadKey] = useState(0);
+  const [branches, setBranches] = useState<BranchInfo[]>([]);
+
+  useEffect(() => {
+    apiClient
+      .get<{ success: true; data: ReferenceData }>('/superadmin/references')
+      .then(({ data }) => setBranches(data.data?.branches ?? []))
+      .catch(() => setBranches([]));
+  }, []);
 
   const handleImport = async (file: File) => {
     const formData = new FormData();
@@ -94,6 +61,16 @@ export function UsersPage() {
     }
   };
 
+  const handleSetPaid = async (id: string) => {
+    try {
+      await apiClient.patch(`/superadmin/users/${id}`, { studentType: 'paid' });
+      message.success('Talaba pulli qilib belgilandi');
+      setReloadKey((prev) => prev + 1);
+    } catch {
+      message.error('Talabani pulli qilib belgilashda xatolik yuz berdi');
+    }
+  };
+
   const handleExport = async () => {
     try {
       const response = await apiClient.get('/superadmin/users/export?role=STUDENT', {
@@ -109,17 +86,7 @@ export function UsersPage() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      message.error('Export jarayonida xatolik yuz berdi');
-    }
-  };
-
-  const handleSetPaid = async (id: string) => {
-    try {
-      await apiClient.patch(`/superadmin/users/${id}`, { studentType: 'paid' });
-      message.success('Talaba pul to‘lagan qilib belgilandi');
-      setReloadKey((prev) => prev + 1);
-    } catch {
-      message.error('Talabani pulli qilib belgilashda xatolik yuz berdi');
+      message.error('Barcha o‘quvchilarni export qilishda xatolik yuz berdi');
     }
   };
 
@@ -155,11 +122,96 @@ export function UsersPage() {
 
   const filteredEndpoint = activeRole === 'ALL' ? `/superadmin/users?refresh=${reloadKey}` : `/superadmin/users?role=${activeRole}&refresh=${reloadKey}`;
 
+  const renderForm = (_form: FormInstance) => (
+    <>
+      <Form.Item name="fullName" label="F.I.Sh" rules={[{ required: true, message: 'F.I.Sh kiriting' }]}>
+        <Input />
+      </Form.Item>
+
+      <Form.Item name="phone" label="Telefon" rules={[{ required: true, message: 'Telefon kiriting' }]}>
+        <Input />
+      </Form.Item>
+
+      <Form.Item name="email" label="Email">
+        <Input />
+      </Form.Item>
+
+      <Form.Item name="role" label="Rol" rules={[{ required: true, message: 'Rol tanlang' }]}>
+        <Select
+          options={[
+            { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN (Barcha filiallar)' },
+            { value: 'ADMIN', label: 'ADMIN (Filial admini)' },
+            { value: 'TEACHER', label: 'OʻQITUVCHI' },
+            { value: 'STUDENT', label: 'TALABA' },
+            { value: 'PARENT', label: 'OTA-ONA' },
+          ]}
+        />
+      </Form.Item>
+
+      <Form.Item
+        shouldUpdate={(prevValues, currentValues) => prevValues.role !== currentValues.role}
+        noStyle
+      >
+        {({ getFieldValue }) => {
+          const selectedRole = getFieldValue('role');
+          const isRequired = selectedRole === 'ADMIN';
+          return (
+            <Form.Item
+              name="branchId"
+              label="Biriktirilgan Filial"
+              rules={isRequired ? [{ required: true, message: 'Filialni tanlang' }] : undefined}
+            >
+              <Select
+                placeholder="Filialni tanlang"
+                options={branches.map((b) => ({ value: b._id, label: b.name }))}
+                allowClear
+              />
+            </Form.Item>
+          );
+        }}
+      </Form.Item>
+
+      <Form.Item shouldUpdate={(prevValues, currentValues) => prevValues.role !== currentValues.role} noStyle>
+        {({ getFieldValue }) =>
+          getFieldValue('role') === 'STUDENT' ? (
+            <Form.Item name="studentType" label="Talaba turi" initialValue="restricted">
+              <Select
+                options={[
+                  { value: 'restricted', label: 'Restr' },
+                  { value: 'paid', label: 'Pulli' },
+                ]}
+              />
+            </Form.Item>
+          ) : null
+        }
+      </Form.Item>
+
+      <Form.Item name="password" label="Parol" rules={[{ required: true, message: 'Parol kiriting' }]}>
+        <Input.Password />
+      </Form.Item>
+
+      <Form.Item name="status" label="Holat" initialValue="active">
+        <Select
+          options={[
+            { value: 'active', label: 'Faol' },
+            { value: 'blocked', label: 'Bloklangan' },
+            { value: 'pending', label: 'Kutilmoqda' },
+          ]}
+        />
+      </Form.Item>
+    </>
+  );
+
   const columns = [
     { title: 'F.I.Sh', dataIndex: 'fullName' as const },
     { title: 'Telefon', dataIndex: 'phone' as const },
     { title: 'Email', dataIndex: 'email' as const },
     { title: 'Rol', dataIndex: 'role' as const },
+    {
+      title: 'Filial',
+      dataIndex: 'branchId' as const,
+      render: (value: unknown) => (value as BranchInfo)?.name ?? '-',
+    },
     {
       title: 'Talaba turi',
       dataIndex: 'studentType' as const,
@@ -180,11 +232,15 @@ export function UsersPage() {
         );
       },
     },
-    { title: 'Holat', dataIndex: 'status' as const, render: (value: unknown) => {
-      const v = String(value);
-      const labels: Record<string, string> = { active: 'Faol', blocked: 'Bloklangan', pending: 'Kutilmoqda', suspended: 'Muzlatilgan' };
-      return <span>{labels[v] ?? v}</span>;
-    }},
+    {
+      title: 'Holat',
+      dataIndex: 'status' as const,
+      render: (value: unknown) => {
+        const v = String(value);
+        const labels: Record<string, string> = { active: 'Faol', blocked: 'Bloklangan', pending: 'Kutilmoqda', suspended: 'Muzlatilgan' };
+        return <span>{labels[v] ?? v}</span>;
+      },
+    },
   ];
 
   return (

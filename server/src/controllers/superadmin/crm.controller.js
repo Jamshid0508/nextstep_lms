@@ -226,8 +226,15 @@ export async function createUser(req, res, next) {
       }
     }
 
+    if (rest.role === ROLES.ADMIN && !rest.branchId && req.user?.role === ROLES.SUPER_ADMIN) {
+      throw ApiError.badRequest("Oddiy admin yaratishda filial biriktirilishi shart");
+    }
+
+    const assignedBranchId = (req.user?.role === ROLES.ADMIN && req.user?.branchId) ? req.user.branchId : rest.branchId;
+
     const user = await User.create({
       ...rest,
+      branchId: assignedBranchId,
       phone: phone ? String(phone).trim() : undefined,
       email: email && String(email).trim() ? String(email).trim().toLowerCase() : undefined,
       passwordHash: await hashPassword(password),

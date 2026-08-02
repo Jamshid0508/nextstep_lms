@@ -41,9 +41,9 @@ export function App() {
 
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppShell />}>
+                  {/* Shared Admin Routes (SUPER_ADMIN and ADMIN) */}
                   <Route path="/" element={<DashboardPage />} />
                   <Route path="users" element={<UsersPage />} />
-                  <Route path="branches" element={<BranchesPage />} />
                   <Route path="courses" element={<CoursesPage />} />
                   <Route path="groups" element={<GroupsPage />} />
                   <Route path="schedules" element={<SchedulesPage />} />
@@ -51,9 +51,14 @@ export function App() {
                   <Route path="payments" element={<PaymentsPage />} />
                   <Route path="finance" element={<FinancePage />} />
                   <Route path="finance/payroll" element={<Navigate to="/finance" replace />} />
-                  <Route path="audit-logs" element={<AuditLogsPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
                   <Route path="parent-relations" element={<ParentRelationsPage />} />
+
+                  {/* SuperAdmin Only Routes */}
+                  <Route element={<ProtectedRoute roles={['SUPER_ADMIN']} />}>
+                    <Route path="branches" element={<BranchesPage />} />
+                    <Route path="audit-logs" element={<AuditLogsPage />} />
+                    <Route path="settings" element={<SettingsPage />} />
+                  </Route>
 
                   {/* Teacher Routes */}
                   <Route element={<ProtectedRoute roles={['TEACHER']} />}>
