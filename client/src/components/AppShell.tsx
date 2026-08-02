@@ -10,14 +10,16 @@ import {
   Menu,
   Popover,
   Space,
+  Tooltip,
   Typography,
 } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   BellOutlined,
+  LeftOutlined,
   LogoutOutlined,
-  MenuFoldOutlined,
   MenuUnfoldOutlined,
+  RightOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -188,20 +190,30 @@ export function AppShell() {
             height: 64,
           }}
         >
-          {/* Left Header section: Mobile Hamburger or Desktop collapse button */}
+          {/* Left Header section: Interactive Sidebar Toggle Button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {isMobile ? (
               <Button
                 type="text"
-                icon={<MenuUnfoldOutlined style={{ fontSize: 18, color: '#123B67' }} />}
+                className="sidebar-toggle-btn"
+                icon={<MenuUnfoldOutlined className="sidebar-toggle-icon" style={{ fontSize: 18 }} />}
                 onClick={() => setDrawerOpen(true)}
               />
             ) : (
-              <Button
-                type="text"
-                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                onClick={() => setCollapsed(!collapsed)}
-              />
+              <Tooltip title={collapsed ? "Menyuni yoyish" : "Menyuni yig'ish"} placement="right">
+                <Button
+                  type="text"
+                  className="sidebar-toggle-btn"
+                  icon={
+                    collapsed ? (
+                      <RightOutlined className="sidebar-toggle-icon" style={{ fontSize: 14 }} />
+                    ) : (
+                      <LeftOutlined className="sidebar-toggle-icon" style={{ fontSize: 14 }} />
+                    )
+                  }
+                  onClick={() => setCollapsed(!collapsed)}
+                />
+              </Tooltip>
             )}
           </div>
 
