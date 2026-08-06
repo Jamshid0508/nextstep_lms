@@ -45,6 +45,10 @@ export const groupSchema = z.object({
   endDate: z.coerce.date().optional(),
   room: z.string().trim().optional().or(z.literal('')),
   maxStudents: z.number().int().min(1).optional(),
+  lessonDays: z.array(z.string()).optional().default([]),
+  startTime: z.string().trim().optional().or(z.literal('')),
+  endTime: z.string().trim().optional().or(z.literal('')),
+  lessonTime: z.string().trim().optional().or(z.literal('')),
   status: z.enum(Object.values(GROUP_STATUS)).optional(),
 });
 
@@ -82,13 +86,14 @@ export const attendanceSchema = z.object({
 
 export const userSchema = z.object({
   fullName: z.string().min(2, 'F.I.Sh kamida 2 ta belgidan iborat bo’lishi kerak'),
-  phone: z.string().min(5, 'Telefon kiriting'),
+  phone: z.string().trim().optional().or(z.literal('')),
   email: z.string().email('Email noto‘g‘ri').optional().or(z.literal('')),
   password: z.string().min(6, 'Parol kamida 6 belgidan iborat bo’lishi kerak'),
   role: z.enum(ALL_ROLES),
   studentType: z.enum(['restricted', 'paid']).optional(),
   status: z.enum(Object.values(USER_STATUS)).optional(),
   branchId: z.string().optional().or(z.literal('')),
+  branchIds: z.array(z.string()).optional().default([]),
 });
 
 export const userUpdateSchema = userSchema.partial();

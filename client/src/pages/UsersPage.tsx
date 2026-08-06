@@ -13,12 +13,13 @@ interface BranchInfo {
 interface UserRecord {
   _id: string;
   fullName: string;
-  phone: string;
+  phone?: string;
   email?: string;
   role: 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PARENT';
   status: 'active' | 'blocked' | 'pending';
   studentType?: 'restricted' | 'paid';
   branchId?: BranchInfo | string;
+  branchIds?: BranchInfo[] | string[];
 }
 
 interface ReferenceData {
@@ -128,8 +129,23 @@ export function UsersPage() {
         <Input />
       </Form.Item>
 
-      <Form.Item name="phone" label="Telefon" rules={[{ required: true, message: 'Telefon kiriting' }]}>
-        <Input />
+      <Form.Item
+        shouldUpdate={(prevValues, currentValues) => prevValues.role !== currentValues.role}
+        noStyle
+      >
+        {({ getFieldValue }) => {
+          const selectedRole = getFieldValue('role');
+          const isPhoneRequired = selectedRole && selectedRole !== 'STUDENT';
+          return (
+            <Form.Item
+              name="phone"
+              label="Telefon"
+              rules={isPhoneRequired ? [{ required: true, message: 'Telefon kiriting' }] : undefined}
+            >
+              <Input placeholder={selectedRole === 'STUDENT' ? "Ixtiyoriy (O'quvchi uchun)" : '+998...'} />
+            </Form.Item>
+          );
+        }}
       </Form.Item>
 
       <Form.Item name="email" label="Email">
@@ -158,16 +174,42 @@ export function UsersPage() {
           return (
             <Form.Item
               name="branchId"
-              label="Biriktirilgan Filial"
+              label="Asosiy Filial"
               rules={isRequired ? [{ required: true, message: 'Filialni tanlang' }] : undefined}
             >
               <Select
-                placeholder="Filialni tanlang"
+                placeholder="Asosiy filialni tanlang"
                 options={branches.map((b) => ({ value: b._id, label: b.name }))}
                 allowClear
               />
             </Form.Item>
           );
+        }}
+      </Form.Item>
+
+      <Form.Item
+        shouldUpdate={(prevValues, currentValues) => prevValues.role !== currentValues.role}
+        noStyle
+      >
+        {({ getFieldValue }) => {
+          const selectedRole = getFieldValue('role');
+          if (selectedRole === 'TEACHER' || selectedRole === 'ADMIN') {
+            return (
+              <Form.Item
+                name="branchIds"
+                label="Qo'shimcha biriktirilgan filiallar"
+                tooltip="O'qituvchi ushbu filiallardagi guruhlarga ham dars o'ta oladi"
+              >
+                <Select
+                  mode="multiple"
+                  placeholder="Qo'shimcha filiallarni tanlang"
+                  options={branches.map((b) => ({ value: b._id, label: b.name }))}
+                  allowClear
+                />
+              </Form.Item>
+            );
+          }
+          return null;
         }}
       </Form.Item>
 
@@ -204,13 +246,35 @@ export function UsersPage() {
 
   const columns = [
     { title: 'F.I.Sh', dataIndex: 'fullName' as const },
-    { title: 'Telefon', dataIndex: 'phone' as const },
+    {
+      title: 'Telefon',
+      dataIndex: 'phone' as const,
+      render: (val: unknown) => (val ? String(val) : <span style={{ color: '#8c8c8c' }}>Kiritilmagan</span>),
+    },
     { title: 'Email', dataIndex: 'email' as const },
     { title: 'Rol', dataIndex: 'role' as const },
     {
-      title: 'Filial',
+      title: 'Filial(lar)',
       dataIndex: 'branchId' as const,
-      render: (value: unknown) => (value as BranchInfo)?.name ?? '-',
+      render: (_value: unknown, record: UserRecord) => {
+        const primaryBranch = (record.branchId as BranchInfo)?.name;
+        const extraBranches = Array.isArray(record.branchIds)
+          ? record.branchIds.map((b) => (typeof b === 'object' ? b.name : b)).filter(Boolean)
+          : [];
+
+        if (!primaryBranch && extraBranches.length === 0) return '-';
+
+        return (
+          <Space direction="vertical" size={2}>
+            {primaryBranch && <span>{primaryBranch}</span>}
+            {extraBranches.map((bName, idx) => (
+              <span key={idx} style={{ fontSize: 12, color: '#1677ff', background: '#e6f4ff', padding: '1px 6px', borderRadius: 4 }}>
+                + {bName}
+              </span>
+            ))}
+          </Space>
+        );
+      },
     },
     {
       title: 'Talaba turi',

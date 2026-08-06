@@ -5,7 +5,7 @@ import { USER_STATUS } from '../constants/status.js';
 const userSchema = new mongoose.Schema(
   {
     fullName: { type: String, required: true, trim: true },
-    phone: { type: String, required: true, unique: true, trim: true },
+    phone: { type: String, required: false, unique: true, sparse: true, trim: true },
     email: { type: String, unique: true, sparse: true, trim: true, lowercase: true },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ALL_ROLES, required: true },
@@ -16,6 +16,7 @@ const userSchema = new mongoose.Schema(
       default: USER_STATUS.ACTIVE,
     },
     branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch' },
+    branchIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Branch' }],
     lastLoginAt: { type: Date },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     resetPasswordTokenHash: { type: String },

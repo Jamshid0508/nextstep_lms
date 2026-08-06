@@ -179,8 +179,9 @@ export async function listUsers(req, res, next) {
     }
 
     const users = await User.find(query)
-      .select('fullName phone email role status branchId studentType createdAt')
+      .select('fullName phone email role status branchId branchIds studentType createdAt')
       .populate('branchId', 'name')
+      .populate('branchIds', 'name')
       .sort({ createdAt: -1 });
     ok(res, users);
   } catch (err) {
@@ -204,14 +205,14 @@ function normalizeStudentType(value) {
 
 export async function createUser(req, res, next) {
   try {
-    const { password, phone, email, ...rest } = req.body;
+    const { password, phone, email, branchIds, ...rest } = req.body;
 
     if (!password || String(password).trim().length < 6) {
       throw ApiError.badRequest("Parol kamida 6 belgidan iborat bo'lishi kerak");
     }
 
-    if (phone) {
-      const cleanPhone = String(phone).trim();
+    const cleanPhone = phone && String(phone).trim() ? String(phone).trim() : undefined;
+    if (cleanPhone) {
       const existingPhone = await User.findOne({ phone: cleanPhone });
       if (existingPhone) {
         throw ApiError.conflict(`"${cleanPhone}" telefon raqamli foydalanuvchi allaqachon mavjud`);
@@ -235,7 +236,8 @@ export async function createUser(req, res, next) {
     const user = await User.create({
       ...rest,
       branchId: assignedBranchId,
-      phone: phone ? String(phone).trim() : undefined,
+      branchIds: Array.isArray(branchIds) ? branchIds : [],
+      phone: cleanPhone,
       email: email && String(email).trim() ? String(email).trim().toLowerCase() : undefined,
       passwordHash: await hashPassword(password),
       studentType: rest.role === ROLES.STUDENT ? normalizeStudentType(rest.studentType) : rest.studentType,
@@ -409,11 +411,11 @@ export async function downloadUserImportTemplate(req, res, next) {
 
 export async function updateUser(req, res, next) {
   try {
-    const { password, phone, email, ...rest } = req.body;
+    const { password, phone, email, branchIds, ...rest } = req.body;
     const userId = req.params.id;
 
-    if (phone) {
-      const cleanPhone = String(phone).trim();
+    const cleanPhone = phone && String(phone).trim() ? String(phone).trim() : null;
+    if (cleanPhone) {
       const existingPhone = await User.findOne({ phone: cleanPhone, _id: { $ne: userId } });
       if (existingPhone) {
         throw ApiError.conflict(`"${cleanPhone}" telefon raqamli boshqa foydalanuvchi mavjud`);
@@ -430,9 +432,14 @@ export async function updateUser(req, res, next) {
 
     const updatePayload = {
       ...rest,
-      ...(phone ? { phone: String(phone).trim() } : {}),
+      phone: cleanPhone || undefined,
+      ...(Array.isArray(branchIds) ? { branchIds } : {}),
       ...(email && String(email).trim() ? { email: String(email).trim().toLowerCase() } : {}),
     };
+
+    if (!cleanPhone) {
+      updatePayload.$unset = { phone: 1 };
+    }
 
     if (password) {
       updatePayload.passwordHash = await hashPassword(password);
@@ -470,13 +477,16 @@ export async function getReferenceData(req, res, next) {
 
     const branchQuery = userBranchId ? buildListQuery({ _id: userBranchId }) : buildListQuery();
     const groupQuery = userBranchId ? buildListQuery({ branchId: userBranchId }) : buildListQuery();
-    const userBranchQuery = userBranchId ? { branchId: userBranchId } : {};
+    const teacherBranchQuery = userBranchId
+      ? buildListQuery({ $or: [{ branchId: userBranchId }, { branchIds: userBranchId }] })
+      : buildListQuery();
+    const studentBranchQuery = userBranchId ? buildListQuery({ branchId: userBranchId }) : buildListQuery();
 
     const [branches, courses, teachers, students, parents, groups] = await Promise.all([
       Branch.find(branchQuery).select('_id name').sort({ name: 1 }),
       Course.find(buildListQuery()).select('_id name price').sort({ name: 1 }),
-      User.find(buildListQuery(userBranchQuery)).where('role').in([ROLES.TEACHER, ROLES.ADMIN]).select('_id fullName').sort({ fullName: 1 }),
-      User.find(buildListQuery(userBranchQuery)).where('role').equals(ROLES.STUDENT).select('_id fullName studentType').sort({ fullName: 1 }),
+      User.find(teacherBranchQuery).where('role').in([ROLES.TEACHER, ROLES.ADMIN]).select('_id fullName branchId branchIds').sort({ fullName: 1 }),
+      User.find(studentBranchQuery).where('role').equals(ROLES.STUDENT).select('_id fullName studentType').sort({ fullName: 1 }),
       User.find(buildListQuery()).where('role').equals(ROLES.PARENT).select('_id fullName').sort({ fullName: 1 }),
       Group.find(groupQuery).populate('courseId', 'name price').select('_id name courseId').sort({ name: 1 }),
     ]);

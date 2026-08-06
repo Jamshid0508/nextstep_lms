@@ -12,6 +12,10 @@ const groupSchema = new mongoose.Schema(
     endDate: { type: Date },
     room: { type: String, trim: true },
     maxStudents: { type: Number, default: 15 },
+    lessonDays: [{ type: String }],
+    startTime: { type: String, trim: true },
+    endTime: { type: String, trim: true },
+    lessonTime: { type: String, trim: true },
     status: {
       type: String,
       enum: Object.values(GROUP_STATUS),

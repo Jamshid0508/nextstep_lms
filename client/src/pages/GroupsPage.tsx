@@ -46,6 +46,10 @@ interface GroupRecord {
   studentIds?: StudentInfo[] | string[];
   room?: string;
   maxStudents?: number;
+  lessonDays?: string[];
+  startTime?: string;
+  endTime?: string;
+  lessonTime?: string;
   status: 'active' | 'inactive' | 'completed';
 }
 
@@ -138,6 +142,10 @@ export function GroupsPage() {
       branchId: (group.branchId as any)?._id || group.branchId,
       room: group.room,
       maxStudents: group.maxStudents || 20,
+      lessonDays: group.lessonDays || [],
+      startTime: group.startTime || '',
+      endTime: group.endTime || '',
+      lessonTime: group.lessonTime || '',
       status: group.status || 'active',
       studentIds: sIds,
     });
@@ -148,6 +156,9 @@ export function GroupsPage() {
   const handleSaveGroup = async () => {
     try {
       const values = await form.validateFields();
+      if (values.startTime || values.endTime) {
+        values.lessonTime = `${values.startTime || ''} - ${values.endTime || ''}`.trim();
+      }
       setSubmitting(true);
 
       if (editingGroup) {
@@ -321,6 +332,25 @@ export function GroupsPage() {
               title: 'Filial',
               dataIndex: 'branchId',
               render: (val: unknown) => (val as any)?.name || '—',
+            },
+            {
+              title: 'Dars Kunlari / Vaqti',
+              key: 'lessonSchedule',
+              render: (_: unknown, record: GroupRecord) => {
+                const days = Array.isArray(record.lessonDays) && record.lessonDays.length > 0
+                  ? record.lessonDays.join(', ')
+                  : null;
+                const time = record.lessonTime || (record.startTime && record.endTime ? `${record.startTime} - ${record.endTime}` : record.startTime || record.endTime || null);
+
+                if (!days && !time) return <span style={{ color: '#bfbfbf' }}>—</span>;
+
+                return (
+                  <Space direction="vertical" size={2}>
+                    {days && <Tag color="cyan" style={{ borderRadius: 4, fontWeight: 500 }}>{days}</Tag>}
+                    {time && <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: '#2f54eb' }}>{time}</Typography.Text>}
+                  </Space>
+                );
+              },
             },
             {
               title: 'Biriktirilgan Talabalar',
@@ -600,6 +630,36 @@ export function GroupsPage() {
             <Col span={12}>
               <Form.Item name="room" label="Xona">
                 <Input placeholder="Masalan: 3-xona" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="lessonDays" label="Dars kunlari">
+                <Select
+                  mode="multiple"
+                  placeholder="Masalan: Dush, Chor, Jum"
+                  options={[
+                    { value: 'Dush', label: 'Dushanba' },
+                    { value: 'Sesh', label: 'Seshanba' },
+                    { value: 'Chor', label: 'Chorshanba' },
+                    { value: 'Pay', label: 'Payshanba' },
+                    { value: 'Jum', label: 'Juma' },
+                    { value: 'Shan', label: 'Shanba' },
+                    { value: 'Yak', label: 'Yakshanba' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item name="startTime" label="Boshlanish vaqti">
+                <Input placeholder="14:00" />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item name="endTime" label="Tugash vaqti">
+                <Input placeholder="16:00" />
               </Form.Item>
             </Col>
           </Row>
