@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
 * {
   box-sizing: border-box;
@@ -10,6 +10,55 @@ body {
   background-color: #F8FAFC;
   color: #1E293B;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Dark Mode Global Overrides */
+html[data-theme='dark'] body {
+  background-color: #0B1727;
+  color: #F1F5F9;
+}
+
+html[data-theme='dark'] .ant-card {
+  background: #112240 !important;
+  border-color: #1E293B !important;
+  color: #F1F5F9 !important;
+}
+
+html[data-theme='dark'] .ant-card-head {
+  border-bottom-color: #1E293B !important;
+  color: #F1F5F9 !important;
+}
+
+html[data-theme='dark'] .ant-table-thead > tr > th {
+  background-color: #0F2744 !important;
+  color: #94A3B8 !important;
+  border-bottom-color: #1E293B !important;
+}
+
+html[data-theme='dark'] .ant-table-tbody > tr > td {
+  border-bottom-color: #1E293B !important;
+}
+
+html[data-theme='dark'] .ant-table-tbody > tr:hover > td {
+  background-color: #1A365D !important;
+}
+
+html[data-theme='dark'] .sidebar-toggle-btn {
+  background: #1E293B !important;
+  border-color: #334155 !important;
+  color: #38BDF8 !important;
+}
+
+html[data-theme='dark'] .sidebar-toggle-btn:hover {
+  background: linear-gradient(135deg, #178C8C 0%, #2ECC71 100%) !important;
+  color: #FFFFFF !important;
+}
+
+/* Glass Logo Hover animation */
+.logo-full-container:hover .glass-logo-badge {
+  transform: scale(1.08) rotate(-2deg);
+  box-shadow: 0 12px 30px -4px rgba(46, 204, 113, 0.4), inset 0 1px 3px rgba(255, 255, 255, 0.6);
 }
 
 /* Custom Sleek Scrollbar */
@@ -22,9 +71,17 @@ body {
   background: #F1F5F9;
 }
 
+html[data-theme='dark'] ::-webkit-scrollbar-track {
+  background: #0F172A;
+}
+
 ::-webkit-scrollbar-thumb {
   background: #CBD5E1;
   border-radius: 4px;
+}
+
+html[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: #334155;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -33,7 +90,7 @@ body {
 
 /* Card Hover Micro-animations & Design Tokens Override */
 .ant-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease !important;
   border-radius: 14px !important;
   border: 1px solid #E2E8F0 !important;
 }

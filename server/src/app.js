@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { env } from './config/env.js';
 import authRoutes from './routes/auth.routes.js';
 import superadminRoutes from './routes/superadmin/index.js';
@@ -11,18 +13,25 @@ import studentRoutes from './routes/student/index.js';
 import parentRoutes from './routes/parent/index.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export function createApp() {
   const app = express();
 
   app.use(helmet());
   app.use(
     cors({
-      origin: env.corsOrigins,
+      origin: true,
       credentials: true,
     }),
   );
   app.use(express.json());
   app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
+
+  if (env.nodeEnv === 'production') {
+    app.use(express.static(path.join(__dirname, '../../../client/dist')));
+  }
 
   const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 100 });
   const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5 });
@@ -37,6 +46,12 @@ export function createApp() {
   app.use('/api/v1/teacher', teacherRoutes);
   app.use('/api/v1/student', studentRoutes);
   app.use('/api/v1/parent', parentRoutes);
+
+  if (env.nodeEnv === 'production') {
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(__dirname, '../../../client/dist/index.html'));
+    });
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler);

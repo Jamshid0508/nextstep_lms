@@ -1,0 +1,8 @@
+**/.git
+**/.vscode
+**/node_modules
+server/node_modules
+client/node_modules
+README.md
+TECHNICAL_SPECIFICATION.md
+tmp_verify_parent_relation.mjs
