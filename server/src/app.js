@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { env } from './config/env.js';
 import authRoutes from './routes/auth.routes.js';
@@ -29,7 +30,15 @@ export function createApp() {
   app.use(express.json());
   app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 
-  const clientDistPath = path.resolve(__dirname, '../../client/dist');
+  const possiblePaths = [
+    path.resolve(process.cwd(), 'client/dist'),
+    path.resolve(__dirname, '../../client/dist'),
+    path.resolve(__dirname, '../client/dist'),
+    path.resolve(__dirname, './client/dist'),
+    '/var/task/client/dist',
+  ];
+  const clientDistPath = possiblePaths.find((p) => fs.existsSync(path.join(p, 'index.html'))) || possiblePaths[0];
+
   app.use(express.static(clientDistPath));
 
   const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 100 });
