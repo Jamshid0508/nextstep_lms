@@ -16,13 +16,14 @@ export function createApp(initFn) {
 
   // DB init middleware must be FIRST so MongoDB connects before routes run
   if (initFn) {
-    app.use(async (_req, _res, next) => {
+    app.use(async (_req, res, next) => {
       try {
         await initFn();
+        next();
       } catch (e) {
-        console.error('[app] init error:', e.message);
+        console.error('[app] init error:', e.message, e.stack);
+        res.status(503).json({ success: false, error: 'SERVICE_UNAVAILABLE', message: 'Database connection failed' });
       }
-      next();
     });
   }
 

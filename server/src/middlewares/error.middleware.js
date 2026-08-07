@@ -25,6 +25,6 @@ export function errorHandler(err, req, res, _next) {
     return fail(res, 409, 'DUPLICATE_KEY', msg, err.keyValue);
   }
 
-  console.error(err);
+  console.error('[errorHandler]', err.message, err.stack);
   return fail(res, 500, 'INTERNAL_ERROR', 'Serverda kutilmagan xatolik yuz berdi');
 }

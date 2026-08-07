@@ -8,22 +8,21 @@ let isInitialized = false;
 async function init() {
   if (isInitialized) return;
   try {
+    console.log('[server] Initializing... MONGO_URI set:', !!process.env.MONGO_URI);
     await connectDb();
     await ensureSuperAdmin();
     isInitialized = true;
+    console.log('[server] Initialization complete');
   } catch (err) {
-    console.error('[server] MongoDB ulanib bo\'lmadi. Atlas IP whitelist yoki Mongo serveri tekshirilishi kerak.');
-    console.error('[server] Xato tafsiloti:', err.message || err);
+    console.error('[server] Init failed:', err.message, err.stack);
+    throw err; // Re-throw so middleware returns 503
   }
 }
 
-const app = createApp();
+// Pass init to createApp so it runs as the FIRST middleware (before routes)
+const app = createApp(init);
 
-app.use(async (_req, _res, next) => {
-  await init();
-  next();
-});
-
+// Local development: start HTTP server
 if (!process.env.VERCEL) {
   init().then(() => {
     app.listen(env.port, () => {
@@ -32,4 +31,6 @@ if (!process.env.VERCEL) {
   });
 }
 
+// Vercel serverless: export Express app
 export default app;
+
