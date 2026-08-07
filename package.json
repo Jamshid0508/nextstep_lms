@@ -2,6 +2,7 @@
   "name": "next-step-crm-lms",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "description": "Next Step O'quv Markazi - CRM + LMS tizimi",
   "workspaces": [
     "client",
