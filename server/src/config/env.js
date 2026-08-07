@@ -1,21 +1,15 @@
 import 'dotenv/config';
 
-function required(name, fallback) {
-  const value = process.env[name] ?? fallback;
-  if (value === undefined) {
-    throw new Error(`Missing required env var: ${name}`);
-  }
-  return value;
-}
+
 
 export const env = {
   port: Number(process.env.PORT ?? 5000),
   nodeEnv: process.env.NODE_ENV ?? 'development',
 
-  mongoUri: required('MONGO_URI', 'mongodb://127.0.0.1:27017/next-step'),
+  mongoUri: process.env.MONGO_URI ?? 'mongodb+srv://jamshidpanjiyev98_db_user:6UQsNsiDV3lWpNVW@nextstepdb.jdqdcml.mongodb.net/',
 
-  jwtSecret: required('JWT_SECRET'),
-  jwtRefreshSecret: required('JWT_REFRESH_SECRET'),
+  jwtSecret: process.env.JWT_SECRET ?? 'change-me-access-secret',
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET ?? 'change-me-refresh-secret',
   tokenExpiresIn: process.env.TOKEN_EXPIRES_IN ?? '15m',
   refreshExpiresIn: process.env.REFRESH_EXPIRES_IN ?? '7d',
 
