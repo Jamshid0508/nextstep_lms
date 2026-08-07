@@ -3,9 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { env } from './config/env.js';
 import authRoutes from './routes/auth.routes.js';
 import superadminRoutes from './routes/superadmin/index.js';
@@ -13,9 +10,6 @@ import teacherRoutes from './routes/teacher/index.js';
 import studentRoutes from './routes/student/index.js';
 import parentRoutes from './routes/parent/index.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export function createApp() {
   const app = express();
@@ -30,17 +24,6 @@ export function createApp() {
   app.use(express.json());
   app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 
-  const possiblePaths = [
-    path.resolve(process.cwd(), 'client/dist'),
-    path.resolve(__dirname, '../../client/dist'),
-    path.resolve(__dirname, '../client/dist'),
-    path.resolve(__dirname, './client/dist'),
-    '/var/task/client/dist',
-  ];
-  const clientDistPath = possiblePaths.find((p) => fs.existsSync(path.join(p, 'index.html'))) || possiblePaths[0];
-
-  app.use(express.static(clientDistPath));
-
   const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 100 });
   const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5 });
 
@@ -54,18 +37,6 @@ export function createApp() {
   app.use('/api/v1/teacher', teacherRoutes);
   app.use('/api/v1/student', studentRoutes);
   app.use('/api/v1/parent', parentRoutes);
-
-  app.use((req, res, next) => {
-    if (req.method !== 'GET' || req.path.startsWith('/api')) {
-      return next();
-    }
-    const indexPath = path.join(clientDistPath, 'index.html');
-    res.sendFile(indexPath, (err) => {
-      if (err) {
-        next();
-      }
-    });
-  });
 
   app.use(notFoundHandler);
   app.use(errorHandler);
