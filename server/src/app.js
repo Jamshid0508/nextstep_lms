@@ -11,8 +11,20 @@ import studentRoutes from './routes/student/index.js';
 import parentRoutes from './routes/parent/index.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 
-export function createApp() {
+export function createApp(initFn) {
   const app = express();
+
+  // DB init middleware must be FIRST so MongoDB connects before routes run
+  if (initFn) {
+    app.use(async (_req, _res, next) => {
+      try {
+        await initFn();
+      } catch (e) {
+        console.error('[app] init error:', e.message);
+      }
+      next();
+    });
+  }
 
   app.use(helmet());
   app.use(
@@ -24,8 +36,8 @@ export function createApp() {
   app.use(express.json());
   app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 
-  const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 100 });
-  const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5 });
+  const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 200 });
+  const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30 });
 
   app.use('/api/v1', apiLimiter);
   app.use('/api/v1/auth/login', loginLimiter);
@@ -43,3 +55,4 @@ export function createApp() {
 
   return app;
 }
+
