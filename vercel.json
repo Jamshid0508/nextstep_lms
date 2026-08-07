@@ -2,16 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "client/dist",
-  "functions": {
-    "server/src/server.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/server/src/server.js"
+      "destination": "/api"
     },
     {
       "source": "/((?!api/).*)",
