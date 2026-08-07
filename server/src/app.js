@@ -46,8 +46,8 @@ export function createApp() {
   app.use('/api/v1/student', studentRoutes);
   app.use('/api/v1/parent', parentRoutes);
 
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) {
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api')) {
       return next();
     }
     const indexPath = path.join(clientDistPath, 'index.html');
