@@ -29,9 +29,8 @@ export function createApp() {
   app.use(express.json());
   app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 
-  if (env.nodeEnv === 'production') {
-    app.use(express.static(path.join(__dirname, '../../../client/dist')));
-  }
+  const clientDistPath = path.resolve(__dirname, '../../client/dist');
+  app.use(express.static(clientDistPath));
 
   const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 100 });
   const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5 });
@@ -47,11 +46,17 @@ export function createApp() {
   app.use('/api/v1/student', studentRoutes);
   app.use('/api/v1/parent', parentRoutes);
 
-  if (env.nodeEnv === 'production') {
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, '../../../client/dist/index.html'));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    const indexPath = path.join(clientDistPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        next();
+      }
     });
-  }
+  });
 
   app.use(notFoundHandler);
   app.use(errorHandler);
